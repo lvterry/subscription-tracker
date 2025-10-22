@@ -460,10 +460,10 @@ function SubscriptionTracker() {
         </div>
       </section>
 
-      <footer className="fixed left-0 bottom-0 w-full border-t border-border bg-background">
+      <footer className="fixed left-0 bottom-0 w-full border-t-2 bg-background">
         <div className="flex items-center justify-between mx-auto max-w-3xl py-4 px-4">
           <span className="text-sm font-medium text-muted-foreground">
-            Current subtotal
+            Monthly subtotal
           </span>
           <span className="text-xl font-semibold">
             {formatCurrency(subtotal)}
