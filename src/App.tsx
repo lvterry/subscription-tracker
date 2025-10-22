@@ -56,6 +56,27 @@ const INITIAL_SUBSCRIPTIONS = [
     cadence: 'Monthly',
     billingDate: '2025-10-28',
   },
+  {
+    id: 'netflix',
+    name: 'Netflix',
+    fee: 18,
+    cadence: 'Monthly',
+    billingDate: '2025-11-08',
+  },
+  {
+    id: 'adobe-creative-cloud',
+    name: 'Adobe Creative Cloud',
+    fee: 55,
+    cadence: 'Monthly',
+    billingDate: '2025-11-13',
+  },
+  {
+    id: 'domain-renewal',
+    name: 'Domain Renewal',
+    fee: 12,
+    cadence: 'Yearly',
+    billingDate: '2026-02-15',
+  },
 ];
 
 const formatCurrency = (value) => {
@@ -192,11 +213,16 @@ function SubscriptionTracker() {
     setIsPanelOpen(false);
   };
 
+  const subtotal = subscriptions.reduce(
+    (total, subscription) => total + Number(subscription.fee ?? 0),
+    0,
+  );
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-4 py-10">
+    <main className="relative mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-4 pb-0 pt-10">
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight">
+          <h1 className="text-3xl font-semibold tracking-tight mb-0">
             Subscription Tracker
           </h1>
           <p className="text-sm text-muted-foreground">
@@ -305,7 +331,7 @@ function SubscriptionTracker() {
         </Sheet>
       </header>
 
-      <section className="space-y-4">
+      <section className="space-y-4 mb-24">
         <div className="divide-y rounded-xl border border-border bg-card/80 shadow-sm backdrop-blur">
           {subscriptions.map((subscription) => (
             <div
@@ -330,6 +356,17 @@ function SubscriptionTracker() {
           ))}
         </div>
       </section>
+
+      <footer className="fixed left-0 bottom-0 w-full border-t border-border bg-background">
+        <div className="flex items-center justify-between mx-auto max-w-3xl py-4 px-4">
+          <span className="text-sm font-medium text-muted-foreground">
+            Current subtotal
+          </span>
+          <span className="text-xl font-semibold">
+            {formatCurrency(subtotal)}
+          </span>
+        </div>
+      </footer>
     </main>
   );
 }
