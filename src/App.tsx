@@ -19,6 +19,13 @@ import {
   SheetTrigger,
 } from './components/ui/sheet.jsx';
 import { cn } from './lib/utils.js';
+import { ChevronDownIcon } from "lucide-react"
+import { Calendar } from "@/components/ui/calendar"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 
 const INITIAL_SUBSCRIPTIONS = [
   {
@@ -122,6 +129,9 @@ function SubscriptionTracker() {
   const nameInputRef = useRef(null);
   const isDesktop = useMediaQuery('(min-width: 640px)');
 
+  const [open, setOpen] = useState(false)
+  const [date, setDate] = useState<Date | undefined>(undefined)
+
   useEffect(() => {
     if (isPanelOpen) {
       window.requestAnimationFrame(() => {
@@ -206,7 +216,7 @@ function SubscriptionTracker() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="sub-fee">Fee</Label>
                   <Input
@@ -231,7 +241,7 @@ function SubscriptionTracker() {
                       setFormValues((prev) => ({ ...prev, cadence: value }))
                     }
                   >
-                    <SelectTrigger id="sub-cadence">
+                    <SelectTrigger id="sub-cadence" className="w-full">
                       <SelectValue placeholder="Select cadence" />
                     </SelectTrigger>
                     <SelectContent>
@@ -241,20 +251,37 @@ function SubscriptionTracker() {
                   </Select>
                 </div>
               </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="sub-billing-date">Next billing date</Label>
-                <Input
-                  id="sub-billing-date"
-                  name="billingDate"
-                  type="date"
-                  required
-                  value={formValues.billingDate}
-                  onChange={handleChange}
-                />
+              
+              <div className="grid gap-4 grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="sub-billing-date">Next billing date</Label>
+                  <Popover open={open} onOpenChange={setOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        id="date"
+                        className="w-full justify-between font-normal"
+                      >
+                        {date ? date.toLocaleDateString() : "Select date"}
+                        <ChevronDownIcon className="color-muted-foreground"/>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={date}
+                        captionLayout="dropdown"
+                        onSelect={(date) => {
+                          setDate(date)
+                          setOpen(false)
+                        }}
+                      />
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </div>
-
-              <Button type="submit">Save</Button>
+              
+              <Button type="submit" className="w-full mt-4">Save</Button>
             </form>
           </SheetContent>
         </Sheet>
