@@ -3,6 +3,22 @@ import { Button } from './components/ui/button.jsx';
 import { Input } from './components/ui/input.jsx';
 import { Label } from './components/ui/label.jsx';
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './components/ui/dropdown-menu.jsx';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from './components/ui/alert-dialog.jsx';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -13,13 +29,12 @@ import {
   Sheet,
   SheetContent,
   SheetDescription,
-  SheetFooter,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
 } from './components/ui/sheet.jsx';
 import { cn } from './lib/utils.js';
-import { ChevronDownIcon } from "lucide-react"
+import { ChevronDownIcon, MoreHorizontalIcon } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -146,6 +161,8 @@ const useMediaQuery = (query) => {
 function SubscriptionTracker() {
   const [subscriptions, setSubscriptions] = useState(INITIAL_SUBSCRIPTIONS);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [editingSubscriptionId, setEditingSubscriptionId] = useState(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
   const [formValues, setFormValues] = useState(defaultFormValues);
   const nameInputRef = useRef(null);
   const isDesktop = useMediaQuery('(min-width: 640px)');
@@ -202,16 +219,75 @@ function SubscriptionTracker() {
       billingDate: formValues.billingDate,
     };
 
-    setSubscriptions((prev) => [
-      ...prev,
-      {
-        ...subscription,
-        fee: Number(subscription.fee),
-      },
-    ]);
+    if (editingSubscriptionId) {
+      setSubscriptions((prev) =>
+        prev.map((item) =>
+          item.id === editingSubscriptionId
+            ? {
+                ...item,
+                name: subscription.name,
+                fee: Number(subscription.fee),
+                cadence: subscription.cadence,
+                billingDate: subscription.billingDate,
+              }
+            : item,
+        ),
+      );
+    } else {
+      setSubscriptions((prev) => [
+        ...prev,
+        {
+          ...subscription,
+          fee: Number(subscription.fee),
+        },
+      ]);
+    }
     setFormValues(defaultFormValues);
+    setDate(undefined);
+    setEditingSubscriptionId(null);
     setIsPanelOpen(false);
   };
+
+  const handleEditSubscription = (subscription) => {
+    setFormValues({
+      name: subscription.name,
+      fee: String(subscription.fee ?? ''),
+      cadence: subscription.cadence,
+      billingDate: subscription.billingDate ?? '',
+    });
+    setDate(
+      subscription.billingDate ? new Date(subscription.billingDate) : undefined,
+    );
+    setEditingSubscriptionId(subscription.id);
+    setIsPanelOpen(true);
+  };
+
+  const handleDeleteRequest = (subscriptionId) => {
+    setPendingDeleteId(subscriptionId);
+  };
+
+  const handleConfirmDelete = () => {
+    if (!pendingDeleteId) {
+      return;
+    }
+    setSubscriptions((prev) =>
+      prev.filter((subscription) => subscription.id !== pendingDeleteId),
+    );
+    setPendingDeleteId(null);
+  };
+
+  const handlePanelOpenChange = (open) => {
+    setIsPanelOpen(open);
+    if (!open) {
+      setFormValues(defaultFormValues);
+      setDate(undefined);
+      setEditingSubscriptionId(null);
+    }
+  };
+
+  const pendingDeleteSubscription = pendingDeleteId
+    ? subscriptions.find((subscription) => subscription.id === pendingDeleteId)
+    : null;
 
   const subtotal = subscriptions.reduce(
     (total, subscription) => total + Number(subscription.fee ?? 0),
@@ -229,7 +305,7 @@ function SubscriptionTracker() {
             A quick snapshot of your recurring web services.
           </p>
         </div>
-        <Sheet open={isPanelOpen} onOpenChange={setIsPanelOpen}>
+        <Sheet open={isPanelOpen} onOpenChange={handlePanelOpenChange}>
           <SheetTrigger asChild>
             <Button className="self-start">Add subscription</Button>
           </SheetTrigger>
@@ -307,7 +383,7 @@ function SubscriptionTracker() {
                         className="w-full justify-between font-normal"
                       >
                         {date ? date.toLocaleDateString() : "Select date"}
-                        <ChevronDownIcon className="color-muted-foreground"/>
+                        <ChevronDownIcon className="text-muted-foreground"/>
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-auto overflow-hidden p-0" align="start">
@@ -344,13 +420,40 @@ function SubscriptionTracker() {
                   Next billing: {formatDate(subscription.billingDate)}
                 </p>
               </div>
-              <div className="text-right">
-                <p className="text-lg font-semibold">
-                  {formatCurrency(subscription.fee)}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {subscription.cadence}
-                </p>
+              <div className="flex items-center gap-2">
+                <div className="text-right">
+                  <p className="text-lg font-semibold">
+                    {formatCurrency(subscription.fee)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {subscription.cadence}
+                  </p>
+                </div>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      className="ml-3"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={`Actions for ${subscription.name}`}
+                    >
+                      <MoreHorizontalIcon className="size-4 text-muted-foreground" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end">
+                    <DropdownMenuItem
+                      onSelect={() => handleEditSubscription(subscription)}
+                    >
+                      Edit
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      variant="destructive"
+                      onSelect={() => handleDeleteRequest(subscription.id)}
+                    >
+                      Delete
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           ))}
@@ -367,6 +470,32 @@ function SubscriptionTracker() {
           </span>
         </div>
       </footer>
+
+      <AlertDialog
+        open={Boolean(pendingDeleteSubscription)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDeleteId(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete subscription</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteSubscription
+                ? `Are you sure you want to remove ${pendingDeleteSubscription.name}? This action cannot be undone.`
+                : 'Are you sure you want to remove this subscription?'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete}>
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }
