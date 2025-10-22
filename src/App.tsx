@@ -132,6 +132,18 @@ function SubscriptionTracker() {
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
 
+  // update the billing date in the form values when the calendar date is selected
+  useEffect(() => {
+    if (!date) {
+      return;
+    }
+    
+    setFormValues((prev) => ({
+      ...prev,
+      billingDate: date.toISOString().split('T')[0],
+    }));
+  }, [date]);
+
   useEffect(() => {
     if (isPanelOpen) {
       window.requestAnimationFrame(() => {
@@ -169,7 +181,13 @@ function SubscriptionTracker() {
       billingDate: formValues.billingDate,
     };
 
-    setSubscriptions((prev) => [...prev, subscription]);
+    setSubscriptions((prev) => [
+      ...prev,
+      {
+        ...subscription,
+        fee: Number(subscription.fee),
+      },
+    ]);
     setFormValues(defaultFormValues);
     setIsPanelOpen(false);
   };
