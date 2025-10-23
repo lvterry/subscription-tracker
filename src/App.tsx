@@ -406,7 +406,7 @@ function SubscriptionTracker() {
                   <Select
                     name="sub-candence"
                     value={formValues.cadence}
-                    onValueChange={(value) =>
+                    onValueChange={(value: BillingCadence) =>
                       setFormValues((prev) => ({ ...prev, cadence: value }))
                     }
                   >
