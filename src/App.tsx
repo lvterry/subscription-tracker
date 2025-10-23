@@ -41,8 +41,26 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { format } from 'date-fns';
 
-const INITIAL_SUBSCRIPTIONS = [
+type BillingCadence = 'Monthly' | 'Yearly';
+
+type Subscription = {
+  id: string;
+  name: string;
+  fee: number;
+  cadence: BillingCadence;
+  billingDate: string;
+};
+
+type SubscriptionFormValues = {
+  name: string;
+  fee: string;
+  cadence: BillingCadence;
+  billingDate: string;
+};
+
+const INITIAL_SUBSCRIPTIONS: Subscription[] = [
   {
     id: 'chatgpt',
     name: 'ChatGPT',
@@ -108,10 +126,35 @@ const formatCurrency = (value: string | number | Date) => {
   }).format(numeric);
 };
 
+const parseDateInput = (value: string | number | Date | null | undefined) => {
+  if (!value) return null;
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  if (typeof value === 'string') {
+    const parts = value.split('-').map(Number);
+    if (parts.length === 3 && parts.every((part) => !Number.isNaN(part))) {
+      const [year, month, day] = parts;
+      const parsed = new Date(year, month - 1, day);
+      return Number.isNaN(parsed.getTime()) ? null : parsed;
+    }
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  if (typeof value === 'number') {
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  return null;
+};
+
 const formatDate = (value: string | number | Date) => {
-  if (!value) return 'TBD';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value);
+  const date = parseDateInput(value);
+  if (!date) return value ? String(value) : 'TBD';
 
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -127,7 +170,7 @@ const makeId = () => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
-const defaultFormValues = {
+const defaultFormValues: SubscriptionFormValues = {
   name: '',
   fee: '',
   cadence: 'Monthly',
@@ -157,9 +200,7 @@ const useMediaQuery = (query: string): boolean => {
       };
     } else if (typeof mediaQuery.addListener === "function") {
       // For backward compatibility
-      // @ts-ignore
       mediaQuery.addListener(handler);
-      // @ts-ignore
       return () => mediaQuery.removeListener(handler);
     }
   }, [query]);
@@ -168,11 +209,11 @@ const useMediaQuery = (query: string): boolean => {
 };
 
 function SubscriptionTracker() {
-  const [subscriptions, setSubscriptions] = useState(INITIAL_SUBSCRIPTIONS);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [formValues, setFormValues] = useState(defaultFormValues);
+  const [formValues, setFormValues] = useState<SubscriptionFormValues>(defaultFormValues);
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const isDesktop = useMediaQuery('(min-width: 640px)');
 
@@ -187,7 +228,7 @@ function SubscriptionTracker() {
     
     setFormValues((prev) => ({
       ...prev,
-      billingDate: date.toISOString().split('T')[0],
+      billingDate: format(date, 'yyyy-MM-dd'),
     }));
   }, [date]);
 
@@ -257,16 +298,15 @@ function SubscriptionTracker() {
     setIsPanelOpen(false);
   };
 
-  const handleEditSubscription = (subscription: any) => {
+  const handleEditSubscription = (subscription: Subscription) => {
+    const parsedDate = parseDateInput(subscription.billingDate);
     setFormValues({
       name: subscription.name,
       fee: String(subscription.fee ?? ''),
       cadence: subscription.cadence,
       billingDate: subscription.billingDate ?? '',
     });
-    setDate(
-      subscription.billingDate ? new Date(subscription.billingDate) : undefined,
-    );
+    setDate(parsedDate ?? undefined);
     setEditingSubscriptionId(subscription.id);
     setIsPanelOpen(true);
   };
