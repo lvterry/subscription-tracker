@@ -94,7 +94,7 @@ const INITIAL_SUBSCRIPTIONS = [
   },
 ];
 
-const formatCurrency = (value) => {
+const formatCurrency = (value: string | number | Date) => {
   const numeric = Number(value);
   if (Number.isNaN(numeric)) {
     return '$0.00';
@@ -108,10 +108,10 @@ const formatCurrency = (value) => {
   }).format(numeric);
 };
 
-const formatDate = (value) => {
+const formatDate = (value: string | number | Date) => {
   if (!value) return 'TBD';
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
+  if (Number.isNaN(date.getTime())) return String(value);
 
   return date.toLocaleDateString('en-US', {
     month: 'short',
@@ -134,25 +134,34 @@ const defaultFormValues = {
   billingDate: '',
 };
 
-const useMediaQuery = (query) => {
-  const getMatches = () =>
-    typeof window !== 'undefined' ? window.matchMedia(query).matches : false;
+const useMediaQuery = (query: string): boolean => {
+  const getMatches = (): boolean =>
+    typeof window !== "undefined" ? window.matchMedia(query).matches : false;
 
-  const [matches, setMatches] = useState(getMatches);
+  const [matches, setMatches] = useState<boolean>(getMatches);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const mediaQuery = window.matchMedia(query);
-    const handler = (event) => setMatches(event.matches);
+
+    // Ensure correct type for event
+    const handler = (event: MediaQueryListEvent) => setMatches(event.matches);
 
     setMatches(mediaQuery.matches);
 
-    if (typeof mediaQuery.addEventListener === 'function') {
-      mediaQuery.addEventListener('change', handler);
-      return () => mediaQuery.removeEventListener('change', handler);
+    if (typeof mediaQuery.addEventListener === "function") {
+      mediaQuery.addEventListener("change", handler);
+      return () => {
+        mediaQuery.removeEventListener("change", handler);
+      };
+    } else if (typeof mediaQuery.addListener === "function") {
+      // For backward compatibility
+      // @ts-ignore
+      mediaQuery.addListener(handler);
+      // @ts-ignore
+      return () => mediaQuery.removeListener(handler);
     }
-
-    mediaQuery.addListener(handler);
-    return () => mediaQuery.removeListener(handler);
   }, [query]);
 
   return matches;
@@ -161,10 +170,10 @@ const useMediaQuery = (query) => {
 function SubscriptionTracker() {
   const [subscriptions, setSubscriptions] = useState(INITIAL_SUBSCRIPTIONS);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
-  const [editingSubscriptionId, setEditingSubscriptionId] = useState(null);
-  const [pendingDeleteId, setPendingDeleteId] = useState(null);
+  const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [formValues, setFormValues] = useState(defaultFormValues);
-  const nameInputRef = useRef(null);
+  const nameInputRef = useRef<HTMLInputElement | null>(null);
   const isDesktop = useMediaQuery('(min-width: 640px)');
 
   const [open, setOpen] = useState(false)
@@ -190,7 +199,7 @@ function SubscriptionTracker() {
     }
   }, [isPanelOpen]);
 
-  const handleChange = (event) => {
+  const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setFormValues((prev) => ({
       ...prev,
@@ -198,7 +207,7 @@ function SubscriptionTracker() {
     }));
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedName = formValues.name.trim();
 
@@ -207,7 +216,7 @@ function SubscriptionTracker() {
         ...prev,
         name: '',
       }));
-      nameInputRef.current?.focus();
+      (nameInputRef.current as HTMLInputElement | null)?.focus();
       return;
     }
 
@@ -248,7 +257,7 @@ function SubscriptionTracker() {
     setIsPanelOpen(false);
   };
 
-  const handleEditSubscription = (subscription) => {
+  const handleEditSubscription = (subscription: any) => {
     setFormValues({
       name: subscription.name,
       fee: String(subscription.fee ?? ''),
@@ -262,7 +271,7 @@ function SubscriptionTracker() {
     setIsPanelOpen(true);
   };
 
-  const handleDeleteRequest = (subscriptionId) => {
+  const handleDeleteRequest = (subscriptionId: string) => {
     setPendingDeleteId(subscriptionId);
   };
 
@@ -276,7 +285,7 @@ function SubscriptionTracker() {
     setPendingDeleteId(null);
   };
 
-  const handlePanelOpenChange = (open) => {
+  const handlePanelOpenChange = (open: boolean) => {
     setIsPanelOpen(open);
     if (!open) {
       setFormValues(defaultFormValues);
