@@ -42,77 +42,10 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { format } from 'date-fns';
+import { loadSubscriptionsFromStorage, persistSubscriptionsToStorage } from '@/lib/subscription-data';
+import type { BillingCadence, Subscription, SubscriptionFormValues } from '@/types/subscription';
 
-type BillingCadence = 'Monthly' | 'Yearly';
-
-type Subscription = {
-  id: string;
-  name: string;
-  fee: number;
-  cadence: BillingCadence;
-  billingDate: string;
-};
-
-type SubscriptionFormValues = {
-  name: string;
-  fee: string;
-  cadence: BillingCadence;
-  billingDate: string;
-};
-
-const INITIAL_SUBSCRIPTIONS: Subscription[] = [
-  {
-    id: 'chatgpt',
-    name: 'ChatGPT',
-    fee: 20,
-    cadence: 'Monthly',
-    billingDate: '2025-11-16',
-  },
-  {
-    id: 'notion-plus',
-    name: 'Notion Plus',
-    fee: 10,
-    cadence: 'Monthly',
-    billingDate: '2025-11-04',
-  },
-  {
-    id: 'linear',
-    name: 'Linear',
-    fee: 99,
-    cadence: 'Monthly',
-    billingDate: '2025-12-01',
-  },
-  {
-    id: 'spotify-duo',
-    name: 'Spotify Duo',
-    fee: 14,
-    cadence: 'Monthly',
-    billingDate: '2025-10-28',
-  },
-  {
-    id: 'netflix',
-    name: 'Netflix',
-    fee: 18,
-    cadence: 'Monthly',
-    billingDate: '2025-11-08',
-  },
-  {
-    id: 'adobe-creative-cloud',
-    name: 'Adobe Creative Cloud',
-    fee: 55,
-    cadence: 'Monthly',
-    billingDate: '2025-11-13',
-  },
-  {
-    id: 'domain-renewal',
-    name: 'Domain Renewal',
-    fee: 12,
-    cadence: 'Yearly',
-    billingDate: '2026-02-15',
-  },
-];
-
-const formatCurrency = (value: string | number | Date) => {
+const formatCurrency = (value: string | number) => {
   const numeric = Number(value);
   if (Number.isNaN(numeric)) {
     return '$0.00';
@@ -209,7 +142,9 @@ const useMediaQuery = (query: string): boolean => {
 };
 
 function SubscriptionTracker() {
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(INITIAL_SUBSCRIPTIONS);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
+    loadSubscriptionsFromStorage(),
+  );
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -219,6 +154,10 @@ function SubscriptionTracker() {
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
+
+  useEffect(() => {
+    persistSubscriptionsToStorage(subscriptions);
+  }, [subscriptions]);
 
   // update the billing date in the form values when the calendar date is selected
   useEffect(() => {
