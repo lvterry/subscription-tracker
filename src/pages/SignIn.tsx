@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -15,15 +16,26 @@ export default function SignIn() {
     register,
     handleSubmit,
     formState: { errors },
+    setError,
   } = useForm<SignInFormValues>();
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
 
-  const onSubmit = (data: SignInFormValues) => {
-    // Mock authentication - always succeeds
-    login(data.email, data.password);
-    // Redirect to home page
-    navigate('/');
+  const onSubmit = async (data: SignInFormValues) => {
+    setIsLoading(true);
+
+    const { error } = await login(data.email, data.password);
+
+    if (error) {
+      setError('root', {
+        message: error,
+      });
+      setIsLoading(false);
+    } else {
+      // Redirect to home page on success
+      navigate('/');
+    }
   };
 
   return (
@@ -37,12 +49,19 @@ export default function SignIn() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          {errors.root && (
+            <div className="rounded-md bg-red-50 p-3 border border-red-200">
+              <p className="text-sm text-red-800">{errors.root.message}</p>
+            </div>
+          )}
+
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
               id="email"
               type="email"
               placeholder="you@example.com"
+              disabled={isLoading}
               {...register('email', {
                 required: 'Email is required',
                 pattern: {
@@ -62,6 +81,7 @@ export default function SignIn() {
               id="password"
               type="password"
               placeholder="Enter your password"
+              disabled={isLoading}
               {...register('password', {
                 required: 'Password is required',
                 minLength: {
@@ -75,14 +95,14 @@ export default function SignIn() {
             )}
           </div>
 
-          <Button type="submit" className="w-full">
-            Sign In
+          <Button type="submit" className="w-full" disabled={isLoading}>
+            {isLoading ? 'Signing in...' : 'Sign In'}
           </Button>
-          
-          <Button className="w-full" variant="ghost">
+
+          <Button className="w-full" variant="ghost" disabled={isLoading}>
             Sign Up
           </Button>
-          
+
         </form>
       </div>
     </main>
