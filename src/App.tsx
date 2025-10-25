@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Button } from './components/ui/button.jsx';
 import { Input } from './components/ui/input.jsx';
 import { Label } from './components/ui/label.jsx';
@@ -284,6 +285,14 @@ function SubscriptionTracker() {
 
   return (
     <main className="relative mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-4 pb-0 pt-10">
+      <div className="flex items-center justify-end mb-4">
+        <Link to="/signin">
+          <Button variant="outline" size="sm">
+            Sign In
+          </Button>
+        </Link>
+      </div>
+
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight mb-0">
