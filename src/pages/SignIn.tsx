@@ -1,7 +1,9 @@
 import { useForm } from 'react-hook-form';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useAuth } from '@/contexts/AuthContext';
 
 type SignInFormValues = {
   email: string;
@@ -14,10 +16,14 @@ export default function SignIn() {
     handleSubmit,
     formState: { errors },
   } = useForm<SignInFormValues>();
+  const { login } = useAuth();
+  const navigate = useNavigate();
 
   const onSubmit = (data: SignInFormValues) => {
-    console.log('Sign in with:', data);
-    // TODO: Implement authentication logic
+    // Mock authentication - always succeeds
+    login(data.email, data.password);
+    // Redirect to home page
+    navigate('/');
   };
 
   return (

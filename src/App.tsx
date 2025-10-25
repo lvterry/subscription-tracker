@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Button } from './components/ui/button.jsx';
+import { useAuth } from './contexts/AuthContext';
 import { Input } from './components/ui/input.jsx';
 import { Label } from './components/ui/label.jsx';
 import {
@@ -143,6 +144,8 @@ const useMediaQuery = (query: string): boolean => {
 };
 
 function SubscriptionTracker() {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
     loadSubscriptionsFromStorage(),
   );
@@ -283,14 +286,30 @@ function SubscriptionTracker() {
     0,
   );
 
+  const handleLogout = () => {
+    logout();
+    navigate('/signin');
+  };
+
   return (
-    <main className="relative mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-4 pb-0 pt-10">
-      <div className="flex items-center justify-end mb-4">
-        <Link to="/signin">
-          <Button variant="outline" size="sm">
-            Sign In
-          </Button>
-        </Link>
+    <main className="relative mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-4 pb-0 pt-4">
+      <div className="flex items-center justify-end gap-3 mb-4">
+        {user ? (
+          <>
+            <span className="text-sm text-muted-foreground">
+              Welcome, {user.name}
+            </span>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              Logout
+            </Button>
+          </>
+        ) : (
+          <Link to="/signin">
+            <Button variant="outline" size="sm">
+              Sign In
+            </Button>
+          </Link>
+        )}
       </div>
 
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
