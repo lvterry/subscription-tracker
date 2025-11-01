@@ -180,6 +180,8 @@ function SubscriptionTracker() {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   const [primaryCurrency, setPrimaryCurrency] = useState<string>('USD');
   const [settingsCurrency, setSettingsCurrency] = useState<string>('USD');
+  const [displayName, setDisplayName] = useState<string>('');
+  const [settingsDisplayName, setSettingsDisplayName] = useState<string>('');
   const [savingSettings, setSavingSettings] = useState(false);
   const [formValues, setFormValues] = useState<SubscriptionFormValues>(getDefaultFormValues('USD'));
   const nameInputRef = useRef<HTMLInputElement | null>(null);
@@ -196,6 +198,8 @@ function SubscriptionTracker() {
       setError(null);
       setPrimaryCurrency('USD');
       setSettingsCurrency('USD');
+      setDisplayName('');
+      setSettingsDisplayName('');
       setFormValues(getDefaultFormValues('USD'));
       return;
     }
@@ -205,9 +209,11 @@ function SubscriptionTracker() {
       setError(null);
       try {
         // Load user settings first
-        const settings = await loadUserSettings(user.id);
+        const settings = await loadUserSettings(user.id, user.email);
         setPrimaryCurrency(settings.primaryCurrency);
         setSettingsCurrency(settings.primaryCurrency);
+        setDisplayName(settings.displayName);
+        setSettingsDisplayName(settings.displayName);
         setFormValues(getDefaultFormValues(settings.primaryCurrency));
 
         // Then load subscriptions
@@ -393,8 +399,10 @@ function SubscriptionTracker() {
     try {
       const settings = await saveUserSettings(user.id, {
         primaryCurrency: settingsCurrency,
-      });
+        displayName: settingsDisplayName.trim() || user.email,
+      }, user.email);
       setPrimaryCurrency(settings.primaryCurrency);
+      setDisplayName(settings.displayName);
       setFormValues((prev) => ({
         ...prev,
         currency: settings.primaryCurrency,
@@ -411,9 +419,10 @@ function SubscriptionTracker() {
 
   const handleSettingsOpenChange = (open: boolean) => {
     setIsSettingsOpen(open);
-    // Reset settings currency to current primary currency when opening
+    // Reset settings to current values when opening
     if (open) {
       setSettingsCurrency(primaryCurrency);
+      setSettingsDisplayName(displayName);
     }
   };
 
@@ -436,7 +445,7 @@ function SubscriptionTracker() {
       {user && (
         <div className="flex items-center justify-between gap-3 mb-4">
           <span className="text-sm text-muted-foreground">
-            Welcome, {user.name}
+            Welcome, {displayName || user.email}
           </span>
           <div className="flex items-center gap-3">
             <Dialog open={isSettingsOpen} onOpenChange={handleSettingsOpenChange}>
@@ -454,6 +463,18 @@ function SubscriptionTracker() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="settings-display-name">Display Name</Label>
+                    <Input
+                      id="settings-display-name"
+                      value={settingsDisplayName}
+                      onChange={(e) => setSettingsDisplayName(e.target.value)}
+                      placeholder={user.email}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      This name will be displayed in the header. If left empty, your email will be used.
+                    </p>
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="settings-primary-currency">Primary Currency</Label>
                     <Select
