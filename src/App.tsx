@@ -35,8 +35,17 @@ import {
   SheetTitle,
   SheetTrigger,
 } from './components/ui/sheet.jsx';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from './components/ui/dialog.jsx';
 import { cn } from './lib/utils.js';
-import { ChevronDownIcon, MoreHorizontalIcon } from "lucide-react"
+import { ChevronDownIcon, MoreHorizontalIcon, SettingsIcon } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -51,6 +60,10 @@ import {
   updateSubscription,
   deleteSubscription,
 } from '@/lib/subscription-service';
+import {
+  loadUserSettings,
+  saveUserSettings,
+} from '@/lib/user-settings-service';
 import type { BillingCadence, Subscription, SubscriptionFormValues } from '@/types/subscription';
 
 const formatCurrency = (value: string | number, currency?: string) => {
@@ -116,13 +129,13 @@ const makeId = () => {
   return `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 };
 
-const defaultFormValues: SubscriptionFormValues = {
+const getDefaultFormValues = (primaryCurrency: string = 'USD'): SubscriptionFormValues => ({
   name: '',
   cost: '',
-  currency: 'USD',
+  currency: primaryCurrency,
   billingCycle: 'Monthly',
   nextBillingDate: '',
-};
+});
 
 const useMediaQuery = (query: string): boolean => {
   const getMatches = (): boolean =>
@@ -162,40 +175,54 @@ function SubscriptionTracker() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
-  const [formValues, setFormValues] = useState<SubscriptionFormValues>(defaultFormValues);
+  const [primaryCurrency, setPrimaryCurrency] = useState<string>('USD');
+  const [settingsCurrency, setSettingsCurrency] = useState<string>('USD');
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [formValues, setFormValues] = useState<SubscriptionFormValues>(getDefaultFormValues('USD'));
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const isDesktop = useMediaQuery('(min-width: 640px)');
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
 
-  // Load subscriptions from database when user logs in
+  // Load user settings and subscriptions from database when user logs in
   useEffect(() => {
     if (!user) {
       // Reset to seed data when logged out
       setSubscriptions(seedSubscriptions);
       setError(null);
+      setPrimaryCurrency('USD');
+      setSettingsCurrency('USD');
+      setFormValues(getDefaultFormValues('USD'));
       return;
     }
 
-    const fetchSubscriptions = async () => {
+    const fetchData = async () => {
       setLoading(true);
       setError(null);
       try {
+        // Load user settings first
+        const settings = await loadUserSettings(user.id);
+        setPrimaryCurrency(settings.primaryCurrency);
+        setSettingsCurrency(settings.primaryCurrency);
+        setFormValues(getDefaultFormValues(settings.primaryCurrency));
+
+        // Then load subscriptions
         const data = await loadSubscriptions(user.id);
         setSubscriptions(data);
       } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to load subscriptions';
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load data';
         setError(errorMessage);
-        console.error('Error loading subscriptions:', err);
+        console.error('Error loading data:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchSubscriptions();
+    fetchData();
   }, [user]);
 
   // update the billing date in the form values when the calendar date is selected
@@ -259,7 +286,7 @@ function SubscriptionTracker() {
       } else {
         setSubscriptions((prev) => [...prev, subscription]);
       }
-      setFormValues(defaultFormValues);
+      setFormValues(getDefaultFormValues(primaryCurrency));
       setDate(undefined);
       setEditingSubscriptionId(null);
       setIsPanelOpen(false);
@@ -290,7 +317,7 @@ function SubscriptionTracker() {
         setSubscriptions((prev) => [...prev, created]);
       }
 
-      setFormValues(defaultFormValues);
+      setFormValues(getDefaultFormValues(primaryCurrency));
       setDate(undefined);
       setEditingSubscriptionId(null);
       setIsPanelOpen(false);
@@ -352,9 +379,41 @@ function SubscriptionTracker() {
   const handlePanelOpenChange = (open: boolean) => {
     setIsPanelOpen(open);
     if (!open) {
-      setFormValues(defaultFormValues);
+      setFormValues(getDefaultFormValues(primaryCurrency));
       setDate(undefined);
       setEditingSubscriptionId(null);
+    }
+  };
+
+  const handleSaveSettings = async () => {
+    if (!user) return;
+
+    setSavingSettings(true);
+    setError(null);
+    try {
+      const settings = await saveUserSettings(user.id, {
+        primaryCurrency: settingsCurrency,
+      });
+      setPrimaryCurrency(settings.primaryCurrency);
+      setFormValues((prev) => ({
+        ...prev,
+        currency: settings.primaryCurrency,
+      }));
+      setIsSettingsOpen(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save settings';
+      setError(errorMessage);
+      console.error('Error saving settings:', err);
+    } finally {
+      setSavingSettings(false);
+    }
+  };
+
+  const handleSettingsOpenChange = (open: boolean) => {
+    setIsSettingsOpen(open);
+    // Reset settings currency to current primary currency when opening
+    if (open) {
+      setSettingsCurrency(primaryCurrency);
     }
   };
 
@@ -379,6 +438,64 @@ function SubscriptionTracker() {
           <span className="text-sm text-muted-foreground">
             Welcome, {user.name}
           </span>
+          <Dialog open={isSettingsOpen} onOpenChange={handleSettingsOpenChange}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="sm" aria-label="Settings">
+                <SettingsIcon className="size-4" />
+                <span>Settings</span>
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Settings</DialogTitle>
+                <DialogDescription>
+                  Manage your preferences
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="settings-primary-currency">Primary Currency</Label>
+                  <Select
+                    value={settingsCurrency}
+                    onValueChange={(value: string) =>
+                      setSettingsCurrency(value)
+                    }
+                  >
+                    <SelectTrigger id="settings-primary-currency" className="w-full">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="EUR">EUR</SelectItem>
+                      <SelectItem value="GBP">GBP</SelectItem>
+                      <SelectItem value="CNY">CNY</SelectItem>
+                      <SelectItem value="JPY">JPY</SelectItem>
+                      <SelectItem value="CAD">CAD</SelectItem>
+                      <SelectItem value="AUD">AUD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    This will be used as the default currency for new subscriptions and for displaying the subtotal.
+                  </p>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsSettingsOpen(false)}
+                  disabled={savingSettings}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleSaveSettings}
+                  disabled={savingSettings}
+                >
+                  {savingSettings ? 'Saving...' : 'Save'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Button variant="ghost" size="sm" onClick={handleLogout}>
             Logout
           </Button>
@@ -624,7 +741,7 @@ function SubscriptionTracker() {
             Monthly subtotal
           </span>
           <span className="text-xl font-semibold">
-            {formatCurrency(subtotal)}
+            {formatCurrency(subtotal, primaryCurrency)}
           </span>
         </div>
       </footer>
