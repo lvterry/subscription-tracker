@@ -45,7 +45,7 @@ import {
   DialogTrigger,
 } from './components/ui/dialog.jsx';
 import { cn } from './lib/utils.js';
-import { ChevronDownIcon, MoreHorizontalIcon, SettingsIcon } from "lucide-react"
+import { ChevronDownIcon, MoreHorizontalIcon, SettingsIcon, LogOut } from "lucide-react"
 import { Calendar } from "@/components/ui/calendar"
 import {
   Popover,
@@ -434,71 +434,74 @@ function SubscriptionTracker() {
   return (
     <main className="relative mx-auto flex min-h-screen max-w-3xl flex-col gap-10 px-4 pb-0 pt-4">
       {user && (
-        <div className="flex items-center justify-end gap-3 mb-4">
+        <div className="flex items-center justify-between gap-3 mb-4">
           <span className="text-sm text-muted-foreground">
             Welcome, {user.name}
           </span>
-          <Dialog open={isSettingsOpen} onOpenChange={handleSettingsOpenChange}>
-            <DialogTrigger asChild>
-              <Button variant="ghost" size="sm" aria-label="Settings">
-                <SettingsIcon className="size-4" />
-                <span>Settings</span>
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Settings</DialogTitle>
-                <DialogDescription>
-                  Manage your preferences
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="settings-primary-currency">Primary Currency</Label>
-                  <Select
-                    value={settingsCurrency}
-                    onValueChange={(value: string) =>
-                      setSettingsCurrency(value)
-                    }
-                  >
-                    <SelectTrigger id="settings-primary-currency" className="w-full">
-                      <SelectValue placeholder="Select currency" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="USD">USD</SelectItem>
-                      <SelectItem value="EUR">EUR</SelectItem>
-                      <SelectItem value="GBP">GBP</SelectItem>
-                      <SelectItem value="CNY">CNY</SelectItem>
-                      <SelectItem value="JPY">JPY</SelectItem>
-                      <SelectItem value="CAD">CAD</SelectItem>
-                      <SelectItem value="AUD">AUD</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground">
-                    This will be used as the default currency for new subscriptions and for displaying the subtotal.
-                  </p>
+          <div className="flex items-center gap-3">
+            <Dialog open={isSettingsOpen} onOpenChange={handleSettingsOpenChange}>
+              <DialogTrigger asChild>
+                <Button variant="ghost" size="sm" aria-label="Settings">
+                  <SettingsIcon className="size-4" />
+                  <span>Settings</span>
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Settings</DialogTitle>
+                  <DialogDescription>
+                    Manage your preferences
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="settings-primary-currency">Primary Currency</Label>
+                    <Select
+                      value={settingsCurrency}
+                      onValueChange={(value: string) =>
+                        setSettingsCurrency(value)
+                      }
+                    >
+                      <SelectTrigger id="settings-primary-currency" className="w-full">
+                        <SelectValue placeholder="Select currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD</SelectItem>
+                        <SelectItem value="EUR">EUR</SelectItem>
+                        <SelectItem value="GBP">GBP</SelectItem>
+                        <SelectItem value="CNY">CNY</SelectItem>
+                        <SelectItem value="JPY">JPY</SelectItem>
+                        <SelectItem value="CAD">CAD</SelectItem>
+                        <SelectItem value="AUD">AUD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      This will be used as the default currency for new subscriptions and for displaying the subtotal.
+                    </p>
+                  </div>
                 </div>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsSettingsOpen(false)}
-                  disabled={savingSettings}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={handleSaveSettings}
-                  disabled={savingSettings}
-                >
-                  {savingSettings ? 'Saving...' : 'Save'}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-          <Button variant="ghost" size="sm" onClick={handleLogout}>
-            Logout
-          </Button>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsSettingsOpen(false)}
+                    disabled={savingSettings}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleSaveSettings}
+                    disabled={savingSettings}
+                  >
+                    {savingSettings ? 'Saving...' : 'Save'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+            <Button variant="ghost" size="sm" onClick={handleLogout}>
+              <LogOut className="size-4" />
+              <span>Logout</span>
+            </Button>
+          </div>
         </div>
       )}
       
