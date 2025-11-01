@@ -12,6 +12,7 @@ export type Subscription = {
 export type SubscriptionFormValues = {
   name: string;
   cost: string;
+  currency: string;
   billingCycle: BillingCadence;
   nextBillingDate: string;
 };

@@ -114,6 +114,7 @@ const makeId = () => {
 const defaultFormValues: SubscriptionFormValues = {
   name: '',
   cost: '',
+  currency: 'USD',
   billingCycle: 'Monthly',
   nextBillingDate: '',
 };
@@ -239,6 +240,7 @@ function SubscriptionTracker() {
         id: makeId(),
         name: trimmedName,
         cost: Number(formValues.cost),
+        currency: formValues.currency,
         billingCycle: formValues.billingCycle,
         nextBillingDate: formValues.nextBillingDate,
       };
@@ -265,6 +267,7 @@ function SubscriptionTracker() {
       const subscriptionData = {
         name: trimmedName,
         cost: Number(formValues.cost),
+        currency: formValues.currency,
         billingCycle: formValues.billingCycle,
         nextBillingDate: formValues.nextBillingDate,
       };
@@ -298,6 +301,7 @@ function SubscriptionTracker() {
     setFormValues({
       name: subscription.name,
       cost: String(subscription.cost ?? ''),
+      currency: subscription.currency || 'USD',
       billingCycle: subscription.billingCycle,
       nextBillingDate: subscription.nextBillingDate ?? '',
     });
@@ -447,6 +451,29 @@ function SubscriptionTracker() {
 
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
+                  <Label htmlFor="sub-currency">Currency</Label>
+                  <Select
+                    value={formValues.currency}
+                    onValueChange={(value: string) =>
+                      setFormValues((prev) => ({ ...prev, currency: value }))
+                    }
+                  >
+                    <SelectTrigger id="sub-currency" className="w-full">
+                      <SelectValue placeholder="Select currency" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="USD">USD</SelectItem>
+                      <SelectItem value="EUR">EUR</SelectItem>
+                      <SelectItem value="GBP">GBP</SelectItem>
+                      <SelectItem value="CNY">CNY</SelectItem>
+                      <SelectItem value="JPY">JPY</SelectItem>
+                      <SelectItem value="CAD">CAD</SelectItem>
+                      <SelectItem value="AUD">AUD</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
                   <Label htmlFor="sub-cost">Cost</Label>
                   <Input
                     id="sub-cost"
@@ -460,7 +487,9 @@ function SubscriptionTracker() {
                     placeholder="e.g. 12.99"
                   />
                 </div>
-
+              </div>
+              
+              <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
                   <Label htmlFor="sub-billing-cycle">Billing Cycle</Label>
                   <Select
@@ -479,9 +508,7 @@ function SubscriptionTracker() {
                     </SelectContent>
                   </Select>
                 </div>
-              </div>
-              
-              <div className="grid gap-4 grid-cols-2">
+
                 <div className="space-y-2">
                   <Label htmlFor="sub-billing-date">Next billing date</Label>
                   <Popover open={open} onOpenChange={setOpen}>
