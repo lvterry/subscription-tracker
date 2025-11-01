@@ -53,17 +53,22 @@ import {
 } from '@/lib/subscription-service';
 import type { BillingCadence, Subscription, SubscriptionFormValues } from '@/types/subscription';
 
-const formatCurrency = (value: string | number) => {
+const formatCurrency = (value: string | number, currency?: string) => {
   const numeric = Number(value);
   if (Number.isNaN(numeric)) {
     return '$0.00';
   }
 
+  const currencyCode = currency || 'USD';
+  
+  // For JPY and CNY, typically don't show decimal places
+  const useDecimals = !['JPY', 'CNY'].includes(currencyCode);
+  
   return new Intl.NumberFormat('en-US', {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: numeric % 1 === 0 ? 0 : 2,
-    maximumFractionDigits: 2,
+    currency: currencyCode,
+    minimumFractionDigits: useDecimals ? (numeric % 1 === 0 ? 0 : 2) : 0,
+    maximumFractionDigits: useDecimals ? 2 : 0,
   }).format(numeric);
 };
 
@@ -574,7 +579,7 @@ function SubscriptionTracker() {
                   <div className="flex items-center gap-2">
                     <div className="text-right">
                       <p className="text-lg font-semibold">
-                        {formatCurrency(subscription.cost)}
+                        {formatCurrency(subscription.cost, subscription.currency)}
                       </p>
                       <p className="text-xs text-muted-foreground">
                         {subscription.billingCycle}
