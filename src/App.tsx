@@ -506,8 +506,8 @@ function SubscriptionTracker() {
       )}
       
       {!user && (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-amber-700 p-4">
-          <p className="text-sm text-amber-800 font-bold">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg bg-muted py-2 px-4">
+          <p className="text-sm">
             This page shows demo data. Please sign in to save and manage your own subscriptions.
           </p>
           <Link to="/signin" className="self-start sm:self-center">
