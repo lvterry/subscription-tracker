@@ -45,6 +45,12 @@ import {
 } from "@/components/ui/popover"
 import { format } from 'date-fns';
 import { seedSubscriptions } from '@/lib/subscription-data';
+import {
+  loadSubscriptions,
+  createSubscription,
+  updateSubscription,
+  deleteSubscription,
+} from '@/lib/subscription-service';
 import type { BillingCadence, Subscription, SubscriptionFormValues } from '@/types/subscription';
 
 const formatCurrency = (value: string | number) => {
@@ -107,9 +113,9 @@ const makeId = () => {
 
 const defaultFormValues: SubscriptionFormValues = {
   name: '',
-  fee: '',
-  cadence: 'Monthly',
-  billingDate: '',
+  cost: '',
+  billingCycle: 'Monthly',
+  nextBillingDate: '',
 };
 
 const useMediaQuery = (query: string): boolean => {
@@ -147,6 +153,8 @@ function SubscriptionTracker() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [subscriptions, setSubscriptions] = useState<Subscription[]>(seedSubscriptions);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -157,6 +165,33 @@ function SubscriptionTracker() {
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
 
+  // Load subscriptions from database when user logs in
+  useEffect(() => {
+    if (!user) {
+      // Reset to seed data when logged out
+      setSubscriptions(seedSubscriptions);
+      setError(null);
+      return;
+    }
+
+    const fetchSubscriptions = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const data = await loadSubscriptions(user.id);
+        setSubscriptions(data);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load subscriptions';
+        setError(errorMessage);
+        console.error('Error loading subscriptions:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSubscriptions();
+  }, [user]);
+
   // update the billing date in the form values when the calendar date is selected
   useEffect(() => {
     if (!date) {
@@ -165,7 +200,7 @@ function SubscriptionTracker() {
     
     setFormValues((prev) => ({
       ...prev,
-      billingDate: format(date, 'yyyy-MM-dd'),
+      nextBillingDate: format(date, 'yyyy-MM-dd'),
     }));
   }, [date]);
 
@@ -185,7 +220,7 @@ function SubscriptionTracker() {
     }));
   };
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const trimmedName = formValues.name.trim();
 
@@ -198,50 +233,73 @@ function SubscriptionTracker() {
       return;
     }
 
-    const subscription = {
-      id: makeId(),
-      name: trimmedName,
-      fee: formValues.fee,
-      cadence: formValues.cadence,
-      billingDate: formValues.billingDate,
-    };
+    if (!user) {
+      // Demo mode - just update local state
+      const subscription = {
+        id: makeId(),
+        name: trimmedName,
+        cost: Number(formValues.cost),
+        billingCycle: formValues.billingCycle,
+        nextBillingDate: formValues.nextBillingDate,
+      };
 
-    if (editingSubscriptionId) {
-      setSubscriptions((prev) =>
-        prev.map((item) =>
-          item.id === editingSubscriptionId
-            ? {
-                ...item,
-                name: subscription.name,
-                fee: Number(subscription.fee),
-                cadence: subscription.cadence,
-                billingDate: subscription.billingDate,
-              }
-            : item,
-        ),
-      );
-    } else {
-      setSubscriptions((prev) => [
-        ...prev,
-        {
-          ...subscription,
-          fee: Number(subscription.fee),
-        },
-      ]);
+      if (editingSubscriptionId) {
+        setSubscriptions((prev) =>
+          prev.map((item) =>
+            item.id === editingSubscriptionId ? { ...item, ...subscription } : item,
+          ),
+        );
+      } else {
+        setSubscriptions((prev) => [...prev, subscription]);
+      }
+      setFormValues(defaultFormValues);
+      setDate(undefined);
+      setEditingSubscriptionId(null);
+      setIsPanelOpen(false);
+      return;
     }
-    setFormValues(defaultFormValues);
-    setDate(undefined);
-    setEditingSubscriptionId(null);
-    setIsPanelOpen(false);
+
+    // User is logged in - persist to database
+    setError(null);
+    try {
+      const subscriptionData = {
+        name: trimmedName,
+        cost: Number(formValues.cost),
+        billingCycle: formValues.billingCycle,
+        nextBillingDate: formValues.nextBillingDate,
+      };
+
+      if (editingSubscriptionId) {
+        const updated = await updateSubscription(user.id, {
+          id: editingSubscriptionId,
+          ...subscriptionData,
+        });
+        setSubscriptions((prev) =>
+          prev.map((item) => (item.id === editingSubscriptionId ? updated : item)),
+        );
+      } else {
+        const created = await createSubscription(user.id, subscriptionData);
+        setSubscriptions((prev) => [...prev, created]);
+      }
+
+      setFormValues(defaultFormValues);
+      setDate(undefined);
+      setEditingSubscriptionId(null);
+      setIsPanelOpen(false);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save subscription';
+      setError(errorMessage);
+      console.error('Error saving subscription:', err);
+    }
   };
 
   const handleEditSubscription = (subscription: Subscription) => {
-    const parsedDate = parseDateInput(subscription.billingDate);
+    const parsedDate = parseDateInput(subscription.nextBillingDate);
     setFormValues({
       name: subscription.name,
-      fee: String(subscription.fee ?? ''),
-      cadence: subscription.cadence,
-      billingDate: subscription.billingDate ?? '',
+      cost: String(subscription.cost ?? ''),
+      billingCycle: subscription.billingCycle,
+      nextBillingDate: subscription.nextBillingDate ?? '',
     });
     setDate(parsedDate ?? undefined);
     setEditingSubscriptionId(subscription.id);
@@ -252,14 +310,34 @@ function SubscriptionTracker() {
     setPendingDeleteId(subscriptionId);
   };
 
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (!pendingDeleteId) {
       return;
     }
-    setSubscriptions((prev) =>
-      prev.filter((subscription) => subscription.id !== pendingDeleteId),
-    );
-    setPendingDeleteId(null);
+
+    if (!user) {
+      // Demo mode - just update local state
+      setSubscriptions((prev) =>
+        prev.filter((subscription) => subscription.id !== pendingDeleteId),
+      );
+      setPendingDeleteId(null);
+      return;
+    }
+
+    // User is logged in - delete from database
+    setError(null);
+    try {
+      await deleteSubscription(user.id, pendingDeleteId);
+      setSubscriptions((prev) =>
+        prev.filter((subscription) => subscription.id !== pendingDeleteId),
+      );
+      setPendingDeleteId(null);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete subscription';
+      setError(errorMessage);
+      console.error('Error deleting subscription:', err);
+      // Still remove from UI on error? Or keep it? Let's keep it for now
+    }
   };
 
   const handlePanelOpenChange = (open: boolean) => {
@@ -276,7 +354,7 @@ function SubscriptionTracker() {
     : null;
 
   const subtotal = subscriptions.reduce(
-    (total, subscription) => total + Number(subscription.fee ?? 0),
+    (total, subscription) => total + Number(subscription.cost ?? 0),
     0,
   );
 
@@ -308,6 +386,22 @@ function SubscriptionTracker() {
               Sign In
             </Button>
           </Link>
+        </div>
+      )}
+
+      {error && (
+        <div className="flex items-center justify-between rounded-lg border border-red-200 bg-red-50 p-4">
+          <p className="text-sm text-red-800 font-medium">
+            {error}
+          </p>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setError(null)}
+            className="text-red-800 hover:text-red-900"
+          >
+            Dismiss
+          </Button>
         </div>
       )}
 
@@ -353,31 +447,31 @@ function SubscriptionTracker() {
 
               <div className="grid gap-4 grid-cols-2">
                 <div className="space-y-2">
-                  <Label htmlFor="sub-fee">Fee</Label>
+                  <Label htmlFor="sub-cost">Cost</Label>
                   <Input
-                    id="sub-fee"
-                    name="fee"
+                    id="sub-cost"
+                    name="cost"
                     type="number"
                     step="0.01"
                     min="0"
                     required
-                    value={formValues.fee}
+                    value={formValues.cost}
                     onChange={handleChange}
                     placeholder="e.g. 12.99"
                   />
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="sub-cadence">Cadence</Label>
+                  <Label htmlFor="sub-billing-cycle">Billing Cycle</Label>
                   <Select
-                    name="sub-candence"
-                    value={formValues.cadence}
+                    name="sub-billing-cycle"
+                    value={formValues.billingCycle}
                     onValueChange={(value: BillingCadence) =>
-                      setFormValues((prev) => ({ ...prev, cadence: value }))
+                      setFormValues((prev) => ({ ...prev, billingCycle: value }))
                     }
                   >
-                    <SelectTrigger id="sub-cadence" className="w-full">
-                      <SelectValue placeholder="Select cadence" />
+                    <SelectTrigger id="sub-billing-cycle" className="w-full">
+                      <SelectValue placeholder="Select billing cycle" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="Monthly">Monthly</SelectItem>
@@ -423,56 +517,73 @@ function SubscriptionTracker() {
       </header>
 
       <section className="space-y-4 mb-24">
-        <div className="divide-y rounded-xl border border-border bg-card/80 shadow-sm backdrop-blur">
-          {subscriptions.map((subscription) => (
-            <div
-              className="flex flex-row gap-2 p-4 items-center justify-between"
-              key={subscription.id}
-            >
-              <div>
-                <h3 className="text-lg font-medium">{subscription.name}</h3>
-                <p className="text-xs text-muted-foreground">
-                  Next billing: {formatDate(subscription.billingDate)}
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="flex flex-col items-center gap-3">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent"></div>
+              <p className="text-sm text-muted-foreground">Loading subscriptions...</p>
+            </div>
+          </div>
+        ) : (
+          <div className="divide-y rounded-xl border border-border bg-card/80 shadow-sm backdrop-blur">
+            {subscriptions.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-sm text-muted-foreground">
+                  {user ? 'No subscriptions yet. Add your first subscription!' : 'No subscriptions to display.'}
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="text-right">
-                  <p className="text-lg font-semibold">
-                    {formatCurrency(subscription.fee)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">
-                    {subscription.cadence}
-                  </p>
+            ) : (
+              subscriptions.map((subscription) => (
+                <div
+                  className="flex flex-row gap-2 p-4 items-center justify-between"
+                  key={subscription.id}
+                >
+                  <div>
+                    <h3 className="text-lg font-medium">{subscription.name}</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Next billing: {formatDate(subscription.nextBillingDate)}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-right">
+                      <p className="text-lg font-semibold">
+                        {formatCurrency(subscription.cost)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {subscription.billingCycle}
+                      </p>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          className="ml-3"
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Actions for ${subscription.name}`}
+                        >
+                          <MoreHorizontalIcon className="size-4 text-muted-foreground" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onSelect={() => handleEditSubscription(subscription)}
+                        >
+                          Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          variant="destructive"
+                          onSelect={() => handleDeleteRequest(subscription.id)}
+                        >
+                          Delete
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      className="ml-3"
-                      variant="ghost"
-                      size="icon-sm"
-                      aria-label={`Actions for ${subscription.name}`}
-                    >
-                      <MoreHorizontalIcon className="size-4 text-muted-foreground" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem
-                      onSelect={() => handleEditSubscription(subscription)}
-                    >
-                      Edit
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      variant="destructive"
-                      onSelect={() => handleDeleteRequest(subscription.id)}
-                    >
-                      Delete
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-          ))}
-        </div>
+              ))
+            )}
+          </div>
+        )}
       </section>
 
       <footer className="fixed left-0 bottom-0 w-full border-t-2 bg-background">

@@ -28,24 +28,32 @@ export const normalizeSubscription = (entry: unknown): Subscription | null => {
     return null;
   }
 
-  const fee = coerceNumber(record.fee);
-  if (fee === null || fee < 0) {
+  const cost = coerceNumber(record.cost);
+  if (cost === null || cost < 0) {
     return null;
   }
 
-  if (!isBillingCadence(record.cadence)) {
+  // Handle both camelCase and snake_case field names
+  const billingCycle = record.billingCycle || record.billing_cycle;
+  if (!isBillingCadence(billingCycle)) {
     return null;
   }
 
-  const billingDate =
-    typeof record.billingDate === 'string' ? record.billingDate : '';
+  const nextBillingDate =
+    typeof record.nextBillingDate === 'string' ? record.nextBillingDate :
+    typeof record.next_billing_date === 'string' ? record.next_billing_date :
+    '';
+
+  const currency =
+    typeof record.currency === 'string' ? record.currency : undefined;
 
   return {
     id: record.id,
     name: record.name,
-    fee,
-    cadence: record.cadence,
-    billingDate,
+    cost,
+    billingCycle,
+    nextBillingDate,
+    currency,
   };
 };
 
