@@ -44,7 +44,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 import { format } from 'date-fns';
-import { loadSubscriptionsFromStorage, persistSubscriptionsToStorage } from '@/lib/subscription-data';
+import { seedSubscriptions } from '@/lib/subscription-data';
 import type { BillingCadence, Subscription, SubscriptionFormValues } from '@/types/subscription';
 
 const formatCurrency = (value: string | number) => {
@@ -146,9 +146,7 @@ const useMediaQuery = (query: string): boolean => {
 function SubscriptionTracker() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
-    loadSubscriptionsFromStorage(),
-  );
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(seedSubscriptions);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
   const [editingSubscriptionId, setEditingSubscriptionId] = useState<string | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
@@ -158,10 +156,6 @@ function SubscriptionTracker() {
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
-
-  useEffect(() => {
-    persistSubscriptionsToStorage(subscriptions);
-  }, [subscriptions]);
 
   // update the billing date in the form values when the calendar date is selected
   useEffect(() => {

@@ -1,8 +1,6 @@
 import seedData from '@/data/subscriptions.json';
 import type { BillingCadence, Subscription } from '@/types/subscription';
 
-const STORAGE_KEY = 'subscription-tracker-subscriptions';
-
 const isBillingCadence = (value: unknown): value is BillingCadence =>
   value === 'Monthly' || value === 'Yearly';
 
@@ -54,48 +52,3 @@ export const normalizeSubscription = (entry: unknown): Subscription | null => {
 export const seedSubscriptions: Subscription[] = Array.isArray(seedData)
   ? seedData.map(normalizeSubscription).filter(Boolean) as Subscription[]
   : [];
-
-export const loadSubscriptionsFromStorage = (): Subscription[] => {
-  if (typeof window === 'undefined') {
-    return seedSubscriptions;
-  }
-
-  try {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (!stored) {
-      return seedSubscriptions;
-    }
-
-    const parsed = JSON.parse(stored);
-    if (!Array.isArray(parsed)) {
-      return seedSubscriptions;
-    }
-
-    const normalized = parsed
-      .map(normalizeSubscription)
-      .filter((item): item is Subscription => Boolean(item));
-
-    if (normalized.length === parsed.length) {
-      return normalized;
-    }
-
-    return normalized.length > 0 ? normalized : seedSubscriptions;
-  } catch {
-    return seedSubscriptions;
-  }
-};
-
-export const persistSubscriptionsToStorage = (
-  subscriptions: Subscription[],
-) => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(subscriptions));
-  } catch {
-    // Swallow storage errors (e.g. quota exceeded or private mode)
-  }
-};
-
-export { STORAGE_KEY };
