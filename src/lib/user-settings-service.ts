@@ -1,13 +1,5 @@
 import { supabase } from './supabaseClient';
 
-type UserSettingsRow = {
-  id: string;
-  user_id: string;
-  primary_currency: string;
-  created_at: string;
-  updated_at: string;
-};
-
 export type UserSettings = {
   primaryCurrency: string;
 };
