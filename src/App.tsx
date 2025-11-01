@@ -306,6 +306,19 @@ function SubscriptionTracker() {
         )}
       </div>
 
+      {!user && (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between rounded-lg border border-amber-700 p-4">
+          <p className="text-sm text-amber-800 font-bold">
+            This page shows demo data. Please sign in to save and manage your own subscriptions.
+          </p>
+          <Link to="/signin" className="self-start sm:self-center">
+            <Button variant="outline" size="sm">
+              Sign In
+            </Button>
+          </Link>
+        </div>
+      )}
+
       <header className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div className="space-y-2">
           <h1 className="text-3xl font-semibold tracking-tight mb-0">
