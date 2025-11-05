@@ -387,7 +387,7 @@ function SubscriptionTracker() {
           ),
         );
       } else {
-        setSubscriptions((prev) => [...prev, subscription]);
+        setSubscriptions((prev) => [subscription, ...prev]);
       }
       setFormValues(getDefaultFormValues(primaryCurrency));
       setDate(undefined);
@@ -426,7 +426,7 @@ function SubscriptionTracker() {
         );
       } else {
         const created = await createSubscription(user.id, subscriptionData);
-        setSubscriptions((prev) => [...prev, created]);
+        setSubscriptions((prev) => [created, ...prev]);
       }
 
       setFormValues(getDefaultFormValues(primaryCurrency));

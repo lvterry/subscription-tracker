@@ -181,7 +181,25 @@ export const createSubscription = async (
         fallback_icon_key: fallbackIconKey,
         normalized_name: normalizedName,
       })
-      .select()
+      .select(`
+        id,
+        user_id,
+        name,
+        cost,
+        currency,
+        billing_cycle,
+        next_billing_date,
+        active,
+        provider_id,
+        fallback_icon_key,
+        normalized_name,
+        subscription_providers:subscription_providers (
+          id,
+          slug,
+          display_name,
+          logo_path
+        )
+      `)
       .single();
 
     if (error) {
@@ -242,7 +260,25 @@ export const updateSubscription = async (
       })
       .eq('id', subscription.id)
       .eq('user_id', userId)
-      .select()
+      .select(`
+        id,
+        user_id,
+        name,
+        cost,
+        currency,
+        billing_cycle,
+        next_billing_date,
+        active,
+        provider_id,
+        fallback_icon_key,
+        normalized_name,
+        subscription_providers:subscription_providers (
+          id,
+          slug,
+          display_name,
+          logo_path
+        )
+      `)
       .single();
 
     if (error) {
