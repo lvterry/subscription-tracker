@@ -23,28 +23,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    // Check active sessions and sets the user
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        setUser(mapSupabaseUser(session.user));
-      }
-      setLoading(false);
-    });
-
-    // Listen for changes on auth state (login, logout, etc.)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(mapSupabaseUser(session.user));
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
   const mapSupabaseUser = (supabaseUser: SupabaseUser): User => {
     const appMetadata = supabaseUser.app_metadata ?? {};
     return {
@@ -54,6 +32,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       isAdmin: Boolean(appMetadata.is_admin),
     };
   };
+
+  const applySessionUser = (sessionUser: SupabaseUser | null | undefined) => {
+    if (!sessionUser) {
+      setUser((prev) => (prev !== null ? null : prev));
+      return;
+    }
+    const next = mapSupabaseUser(sessionUser);
+    setUser((prev) => {
+      if (
+        prev &&
+        prev.id === next.id &&
+        prev.email === next.email &&
+        prev.isAdmin === next.isAdmin &&
+        prev.name === next.name
+      ) {
+        return prev;
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
+    // Check active sessions and sets the user
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      applySessionUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    // Listen for changes on auth state (login, logout, etc.)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        applySessionUser(session?.user ?? null);
+      } else if (event === 'SIGNED_OUT') {
+        applySessionUser(null);
+      }
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const login = async (email: string, password: string): Promise<{ error: string | null }> => {
     try {
