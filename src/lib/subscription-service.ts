@@ -1,5 +1,14 @@
 import { supabase } from './supabaseClient';
-import type { Subscription, BillingCadence } from '@/types/subscription';
+import {
+  normalizeSubscriptionName,
+  pickFallbackIconKey,
+} from './provider-utils';
+import type {
+  Subscription,
+  BillingCadence,
+  FallbackIconKey,
+  SubscriptionProvider,
+} from '@/types/subscription';
 
 type SubscriptionRow = {
   id: string;
@@ -12,12 +21,29 @@ type SubscriptionRow = {
   active?: boolean;
   created_at?: string;
   updated_at?: string;
+  provider_id?: string | null;
+  fallback_icon_key?: string | null;
+  normalized_name?: string | null;
+  subscription_providers?: ProviderRow | ProviderRow[] | null;
+};
+
+type ProviderRow = {
+  id: string;
+  slug: string;
+  display_name: string;
+  logo_path: string | null;
 };
 
 /**
  * Transform database row to Subscription type
  */
 const transformRow = (row: SubscriptionRow): Subscription => {
+  const providerEntry = Array.isArray(row.subscription_providers)
+    ? row.subscription_providers[0]
+    : row.subscription_providers;
+  const provider = providerEntry ?? null;
+  const fallbackIconKey = row.fallback_icon_key as FallbackIconKey | null | undefined;
+
   return {
     id: row.id,
     name: row.name,
@@ -25,6 +51,45 @@ const transformRow = (row: SubscriptionRow): Subscription => {
     billingCycle: row.billing_cycle as BillingCadence,
     nextBillingDate: row.next_billing_date || '',
     currency: row.currency,
+    providerId: row.provider_id ?? null,
+    providerSlug: provider?.slug ?? null,
+    providerName: provider?.display_name ?? null,
+    logoPath: provider?.logo_path ?? null,
+    fallbackIconKey: fallbackIconKey ?? null,
+    normalizedName: row.normalized_name ?? null,
+  };
+};
+
+const fetchProviderBySlug = async (
+  slug: string
+): Promise<SubscriptionProvider | null> => {
+  if (!slug) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('subscription_providers')
+    .select('id, slug, display_name, logo_path, last_verified_at, notes')
+    .eq('slug', slug)
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Error fetching subscription provider:', error);
+    return null;
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  return {
+    id: data.id,
+    slug: data.slug,
+    displayName: data.display_name,
+    logoPath: data.logo_path,
+    lastVerifiedAt: data.last_verified_at ?? null,
+    notes: data.notes ?? null,
   };
 };
 
@@ -35,7 +100,25 @@ export const loadSubscriptions = async (userId: string): Promise<Subscription[]>
   try {
     const { data, error } = await supabase
       .from('subscriptions')
-      .select('id, user_id, name, cost, currency, billing_cycle, next_billing_date, active')
+      .select(`
+        id,
+        user_id,
+        name,
+        cost,
+        currency,
+        billing_cycle,
+        next_billing_date,
+        active,
+        provider_id,
+        fallback_icon_key,
+        normalized_name,
+        subscription_providers:subscription_providers (
+          id,
+          slug,
+          display_name,
+          logo_path
+        )
+      `)
       .eq('user_id', userId)
       .eq('active', true)
       .order('created_at', { ascending: false });
@@ -63,6 +146,12 @@ export const createSubscription = async (
   subscription: Omit<Subscription, 'id'>
 ): Promise<Subscription> => {
   try {
+    const normalizedName = normalizeSubscriptionName(subscription.name);
+    const provider = await fetchProviderBySlug(normalizedName);
+    const fallbackIconKey: FallbackIconKey | null = provider
+      ? null
+      : subscription.fallbackIconKey ?? pickFallbackIconKey(normalizedName);
+
     const { data, error } = await supabase
       .from('subscriptions')
       .insert({
@@ -73,6 +162,9 @@ export const createSubscription = async (
         billing_cycle: subscription.billingCycle,
         next_billing_date: subscription.nextBillingDate,
         active: true,
+        provider_id: provider?.id ?? null,
+        fallback_icon_key: fallbackIconKey,
+        normalized_name: normalizedName,
       })
       .select()
       .single();
@@ -100,6 +192,20 @@ export const updateSubscription = async (
   subscription: Subscription
 ): Promise<Subscription> => {
   try {
+    const normalizedName = normalizeSubscriptionName(subscription.name);
+    const provider = await fetchProviderBySlug(normalizedName);
+
+    let providerId: string | null = subscription.providerId ?? null;
+    let fallbackIconKey: FallbackIconKey | null =
+      subscription.fallbackIconKey ?? null;
+
+    if (provider) {
+      providerId = provider.id;
+      fallbackIconKey = null;
+    } else if (!providerId) {
+      fallbackIconKey = pickFallbackIconKey(normalizedName);
+    }
+
     const { data, error } = await supabase
       .from('subscriptions')
       .update({
@@ -108,6 +214,9 @@ export const updateSubscription = async (
         currency: subscription.currency || 'USD',
         billing_cycle: subscription.billingCycle,
         next_billing_date: subscription.nextBillingDate,
+        provider_id: providerId,
+        fallback_icon_key: fallbackIconKey,
+        normalized_name: normalizedName,
       })
       .eq('id', subscription.id)
       .eq('user_id', userId)
@@ -151,4 +260,3 @@ export const deleteSubscription = async (
     throw error;
   }
 };
-

@@ -64,6 +64,9 @@ import {
   loadUserSettings,
   saveUserSettings,
 } from '@/lib/user-settings-service';
+import { SubscriptionLogo } from '@/components/SubscriptionLogo';
+import { getProviderBySlug } from '@/data/provider-catalog';
+import { normalizeSubscriptionName, pickFallbackIconKey } from '@/lib/provider-utils';
 import type { BillingCadence, Subscription, SubscriptionFormValues } from '@/types/subscription';
 
 const formatCurrency = (value: string | number, currency?: string) => {
@@ -274,6 +277,10 @@ function SubscriptionTracker() {
 
     if (!user) {
       // Demo mode - just update local state
+      const normalizedName = normalizeSubscriptionName(trimmedName);
+      const provider = getProviderBySlug(normalizedName);
+      const fallbackIconKey = provider ? null : pickFallbackIconKey(normalizedName);
+
       const subscription = {
         id: makeId(),
         name: trimmedName,
@@ -281,6 +288,12 @@ function SubscriptionTracker() {
         currency: formValues.currency,
         billingCycle: formValues.billingCycle,
         nextBillingDate: formValues.nextBillingDate,
+        providerId: provider?.id ?? null,
+        providerSlug: provider?.slug ?? null,
+        providerName: provider?.displayName ?? null,
+        logoPath: provider?.logoPath ?? null,
+        fallbackIconKey,
+        normalizedName,
       };
 
       if (editingSubscriptionId) {
@@ -311,9 +324,18 @@ function SubscriptionTracker() {
       };
 
       if (editingSubscriptionId) {
+        const existing = subscriptions.find(
+          (item) => item.id === editingSubscriptionId
+        );
         const updated = await updateSubscription(user.id, {
           id: editingSubscriptionId,
           ...subscriptionData,
+          providerId: existing?.providerId ?? null,
+          providerSlug: existing?.providerSlug ?? null,
+          providerName: existing?.providerName ?? null,
+          logoPath: existing?.logoPath ?? null,
+          fallbackIconKey: existing?.fallbackIconKey ?? null,
+          normalizedName: existing?.normalizedName ?? null,
         });
         setSubscriptions((prev) =>
           prev.map((item) => (item.id === editingSubscriptionId ? updated : item)),
@@ -448,6 +470,13 @@ function SubscriptionTracker() {
             Welcome, {displayName || user.email}
           </span>
           <div className="flex items-center gap-3">
+            {user.isAdmin && (
+              <Link to="/admin/providers">
+                <Button variant="outline" size="sm">
+                  Admin
+                </Button>
+              </Link>
+            )}
             <Dialog open={isSettingsOpen} onOpenChange={handleSettingsOpenChange}>
               <DialogTrigger asChild>
                 <Button variant="ghost" size="sm" aria-label="Settings">
@@ -698,7 +727,7 @@ function SubscriptionTracker() {
             </div>
           </div>
         ) : (
-          <div className="divide-y rounded-xl border border-border bg-card/80 shadow-sm backdrop-blur">
+          <div className="divide-y rounded-xl border border-border bg-card/80">
             {subscriptions.length === 0 ? (
               <div className="p-8 text-center">
                 <p className="text-sm text-muted-foreground">
@@ -708,14 +737,22 @@ function SubscriptionTracker() {
             ) : (
               subscriptions.map((subscription) => (
                 <div
-                  className="flex flex-row gap-2 p-4 items-center justify-between"
+                  className="flex flex-row items-center justify-between gap-4 p-4"
                   key={subscription.id}
                 >
-                  <div>
-                    <h3 className="text-lg font-medium">{subscription.name}</h3>
-                    <p className="text-xs text-muted-foreground">
-                      Next billing: {formatDate(subscription.nextBillingDate)}
-                    </p>
+                  <div className="flex items-center gap-3">
+                    <SubscriptionLogo
+                      providerName={subscription.providerName}
+                      logoPath={subscription.logoPath}
+                      fallbackIconKey={subscription.fallbackIconKey}
+                      subscriptionName={subscription.name}
+                    />
+                    <div>
+                      <h3 className="text-lg font-medium">{subscription.name}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Next billing: {formatDate(subscription.nextBillingDate)}
+                      </p>
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="text-right">

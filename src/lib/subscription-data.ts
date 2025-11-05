@@ -1,4 +1,9 @@
 import seedData from '@/data/subscriptions.json';
+import { getProviderBySlug } from '@/data/provider-catalog';
+import {
+  normalizeSubscriptionName,
+  pickFallbackIconKey,
+} from '@/lib/provider-utils';
 import type { BillingCadence, Subscription } from '@/types/subscription';
 
 const isBillingCadence = (value: unknown): value is BillingCadence =>
@@ -47,6 +52,10 @@ export const normalizeSubscription = (entry: unknown): Subscription | null => {
   const currency =
     typeof record.currency === 'string' ? record.currency : undefined;
 
+  const normalizedName = normalizeSubscriptionName(record.name);
+  const provider = getProviderBySlug(normalizedName);
+  const fallbackIconKey = provider ? null : pickFallbackIconKey(normalizedName);
+
   return {
     id: record.id,
     name: record.name,
@@ -54,6 +63,12 @@ export const normalizeSubscription = (entry: unknown): Subscription | null => {
     billingCycle,
     nextBillingDate,
     currency,
+    providerId: provider?.id ?? null,
+    providerSlug: provider?.slug ?? null,
+    providerName: provider?.displayName ?? null,
+    logoPath: provider?.logoPath ?? null,
+    fallbackIconKey,
+    normalizedName,
   };
 };
 

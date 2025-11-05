@@ -7,6 +7,7 @@ type User = {
   id: string;
   email: string;
   name: string;
+  isAdmin: boolean;
 };
 
 type AuthContextType = {
@@ -45,10 +46,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const mapSupabaseUser = (supabaseUser: SupabaseUser): User => {
+    const appMetadata = supabaseUser.app_metadata ?? {};
     return {
       id: supabaseUser.id,
       email: supabaseUser.email || '',
       name: supabaseUser.email?.split('@')[0] || 'User',
+      isAdmin: Boolean(appMetadata.is_admin),
     };
   };
 

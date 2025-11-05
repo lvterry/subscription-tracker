@@ -7,45 +7,31 @@
     "nextBillingDate": "2025-11-16"
   },
   {
-    "id": "notion-plus",
-    "name": "Notion Plus",
+    "id": "apple-music",
+    "name": "Apple Music",
     "cost": 10,
     "billingCycle": "Monthly",
     "nextBillingDate": "2025-11-04"
   },
   {
-    "id": "linear",
-    "name": "Linear",
+    "id": "netflix",
+    "name": "Netflix",
     "cost": 99,
     "billingCycle": "Monthly",
     "nextBillingDate": "2025-12-01"
   },
   {
-    "id": "spotify-duo",
-    "name": "Spotify Duo",
+    "id": "spotify",
+    "name": "Spotify",
     "cost": 14,
     "billingCycle": "Monthly",
     "nextBillingDate": "2025-10-28"
   },
   {
-    "id": "netflix",
-    "name": "Netflix",
+    "id": "youtube-premium",
+    "name": "YouTube Premium",
     "cost": 18,
     "billingCycle": "Monthly",
     "nextBillingDate": "2025-11-08"
-  },
-  {
-    "id": "adobe-creative-cloud",
-    "name": "Adobe Creative Cloud",
-    "cost": 55,
-    "billingCycle": "Monthly",
-    "nextBillingDate": "2025-11-13"
-  },
-  {
-    "id": "domain-renewal",
-    "name": "Domain Renewal",
-    "cost": 12,
-    "billingCycle": "Yearly",
-    "nextBillingDate": "2026-02-15"
   }
 ]
