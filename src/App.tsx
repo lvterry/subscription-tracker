@@ -301,16 +301,6 @@ function SubscriptionTracker() {
     }
   };
 
-  const handleNameFocus = () => {
-    const currentValue = formValues.name;
-    if (!currentValue) {
-      return;
-    }
-    const matches = search(currentValue);
-    setProviderSuggestions(matches);
-    setShowProviderSuggestions(matches.length > 0);
-  };
-
   const handleNameBlur = () => {
     const currentValue = formValues.name.trim();
     if (!currentValue) {
@@ -739,6 +729,11 @@ function SubscriptionTracker() {
           </SheetTrigger>
           <SheetContent
             side={isDesktop ? 'right' : 'bottom'}
+            onOpenAutoFocus={(event) => {
+              if (!isAddingSubscription) {
+                event.preventDefault();
+              }
+            }}
             className={cn(
               'w-full sm:max-w-md',
               !isDesktop && 'h-[85vh] rounded-t-xl sm:rounded-xl',
@@ -760,7 +755,6 @@ function SubscriptionTracker() {
                     required
                     value={formValues.name}
                     onChange={handleChange}
-                    onFocus={handleNameFocus}
                     onBlur={handleNameBlur}
                     aria-autocomplete="list"
                     aria-expanded={showProviderSuggestions}
