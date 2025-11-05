@@ -200,6 +200,7 @@ function SubscriptionTracker() {
   const [selectedProvider, setSelectedProvider] = useState<SubscriptionProvider | null>(null);
   const [providerSuggestions, setProviderSuggestions] = useState<ProviderSearchResult[]>([]);
   const [showProviderSuggestions, setShowProviderSuggestions] = useState(false);
+  const [isAddingSubscription, setIsAddingSubscription] = useState(true);
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
@@ -264,12 +265,16 @@ function SubscriptionTracker() {
   }, [date]);
 
   useEffect(() => {
-    if (isPanelOpen && !editingSubscriptionId) {
-      window.requestAnimationFrame(() => {
-        nameInputRef.current?.focus();
-      });
+    if (!isPanelOpen || !isAddingSubscription) {
+      return undefined;
     }
-  }, [isPanelOpen, editingSubscriptionId]);
+
+    const rafId = window.requestAnimationFrame(() => {
+      nameInputRef.current?.focus();
+    });
+
+    return () => window.cancelAnimationFrame(rafId);
+  }, [isPanelOpen, isAddingSubscription]);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
@@ -458,6 +463,7 @@ function SubscriptionTracker() {
   };
 
   const handleEditSubscription = (subscription: Subscription) => {
+    setIsAddingSubscription(false);
     const parsedDate = parseDateInput(subscription.nextBillingDate);
     setFormValues({
       name: subscription.name,
@@ -529,10 +535,12 @@ function SubscriptionTracker() {
       setSelectedProvider(null);
       setProviderSuggestions([]);
       setShowProviderSuggestions(false);
+      setIsAddingSubscription(true);
     } else if (!editingSubscriptionId) {
       setSelectedProvider(null);
       setProviderSuggestions([]);
       setShowProviderSuggestions(false);
+      setIsAddingSubscription(true);
     }
   };
 
@@ -718,7 +726,16 @@ function SubscriptionTracker() {
         </div>
         <Sheet open={isPanelOpen} onOpenChange={handlePanelOpenChange}>
           <SheetTrigger asChild>
-            <Button className="self-start">Add subscription</Button>
+            <Button
+              className="self-start"
+              onClick={() => {
+                setIsAddingSubscription(true);
+                setEditingSubscriptionId(null);
+                setSelectedProvider(null);
+              }}
+            >
+              Add subscription
+            </Button>
           </SheetTrigger>
           <SheetContent
             side={isDesktop ? 'right' : 'bottom'}
