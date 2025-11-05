@@ -196,7 +196,7 @@ function SubscriptionTracker() {
   const [formValues, setFormValues] = useState<SubscriptionFormValues>(getDefaultFormValues('USD'));
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const isDesktop = useMediaQuery('(min-width: 640px)');
-  const { search, findBySlug } = useProviderCatalog(Boolean(user));
+  const { search, findBySlug, findByDisplayName } = useProviderCatalog(Boolean(user));
   const [selectedProvider, setSelectedProvider] = useState<SubscriptionProvider | null>(null);
   const [providerSuggestions, setProviderSuggestions] = useState<ProviderSearchResult[]>([]);
   const [showProviderSuggestions, setShowProviderSuggestions] = useState(false);
@@ -280,8 +280,13 @@ function SubscriptionTracker() {
 
     if (name === 'name') {
       const normalized = normalizeSubscriptionName(value);
+      const lowerValue = value.trim().toLowerCase();
 
-      if (selectedProvider && selectedProvider.slug !== normalized) {
+      if (
+        selectedProvider &&
+        selectedProvider.slug !== normalized &&
+        selectedProvider.displayName.trim().toLowerCase() !== lowerValue
+      ) {
         setSelectedProvider(null);
       }
 
@@ -310,7 +315,10 @@ function SubscriptionTracker() {
     }
 
     const normalized = normalizeSubscriptionName(currentValue);
-    const provider = findBySlug(normalized);
+    let provider = findBySlug(normalized);
+    if (!provider) {
+      provider = findByDisplayName(currentValue);
+    }
     if (provider) {
       setSelectedProvider(provider);
       setFormValues((prev) => ({
@@ -360,7 +368,13 @@ function SubscriptionTracker() {
     }
 
     const normalizedName = normalizeSubscriptionName(trimmedName);
-    const providerSelection = selectedProvider ?? (user ? findBySlug(normalizedName) : getProviderBySlug(normalizedName));
+    let providerSelection = selectedProvider;
+    if (!providerSelection) {
+      providerSelection = user ? findBySlug(normalizedName) : getProviderBySlug(normalizedName);
+    }
+    if (!providerSelection) {
+      providerSelection = findByDisplayName(trimmedName) ?? null;
+    }
     const fallbackIconKey = providerSelection ? null : pickFallbackIconKey(normalizedName);
 
     if (!user) {

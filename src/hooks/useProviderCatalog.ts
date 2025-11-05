@@ -56,37 +56,46 @@ export const useProviderCatalog = (isAuthenticated: boolean) => {
   }, [isAuthenticated]);
 
   const providerMap = useMemo(() => {
-    return providers.reduce<Record<string, SubscriptionProvider>>((acc, provider) => {
-      acc[provider.slug] = provider;
-      return acc;
-    }, {});
+    return new Map<string, SubscriptionProvider>(
+      providers.map((provider) => [provider.slug, provider])
+    );
   }, [providers]);
 
-  const findBySlug = (slug: string) => providerMap[slug] ?? null;
+  const findBySlug = (slug: string) => providerMap.get(slug) ?? null;
+
+  const findByDisplayName = (name: string) => {
+    const trimmed = name.trim().toLowerCase();
+    if (!trimmed) {
+      return null;
+    }
+    return providers.find(
+      (provider) => provider.displayName.trim().toLowerCase() === trimmed
+    ) ?? null;
+  };
 
   const search = (query: string): ProviderSearchResult[] => {
     if (!query || query.length < MIN_QUERY_LENGTH) {
       return [];
     }
     const normalizedQuery = normalizeSubscriptionName(query);
-    if (!normalizedQuery) {
-      return [];
-    }
+    const lowerQuery = query.trim().toLowerCase();
 
     const results = providers
       .map((provider) => {
         const normalizedName = normalizeSubscriptionName(provider.displayName);
         let score = 0;
 
-        if (provider.slug === normalizedQuery) {
+        if (provider.displayName.trim().toLowerCase() === lowerQuery) {
+          score = 120;
+        } else if (normalizedQuery && provider.slug === normalizedQuery) {
           score = 100;
-        } else if (provider.slug.startsWith(normalizedQuery)) {
+        } else if (normalizedQuery && provider.slug.startsWith(normalizedQuery)) {
           score = 80;
-        } else if (normalizedName.startsWith(normalizedQuery)) {
+        } else if (normalizedQuery && normalizedName.startsWith(normalizedQuery)) {
           score = 70;
-        } else if (provider.displayName.toLowerCase().includes(query.toLowerCase())) {
+        } else if (provider.displayName.toLowerCase().includes(lowerQuery)) {
           score = 50;
-        } else if (provider.slug.includes(normalizedQuery)) {
+        } else if (normalizedQuery && provider.slug.includes(normalizedQuery)) {
           score = 40;
         }
 
@@ -108,6 +117,7 @@ export const useProviderCatalog = (isAuthenticated: boolean) => {
     loading,
     error,
     findBySlug,
+    findByDisplayName,
     search,
-  };
+  } as const;
 };
