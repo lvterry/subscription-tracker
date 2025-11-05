@@ -33,11 +33,15 @@ const NEW_PROVIDER: ProviderInput = {
   lastVerifiedAt: null,
 };
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) return '—';
+const formatVerifiedDate = (value?: string | null) => {
+  if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleString();
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  });
 };
 
 export const AdminProvidersPage = () => {
@@ -280,33 +284,43 @@ export const AdminProvidersPage = () => {
             </Button>
           </div>
           <div className="mt-4 divide-y border-y border-border">
-            {providers.map((provider) => (
-              <button
-                key={provider.id}
-                type="button"
-                onClick={() => handleSelectProvider(provider)}
-                className="flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-muted/50"
-              >
-                <div className="flex items-center gap-3">
-                  <SubscriptionLogo
-                    providerName={provider.displayName}
-                    logoPath={provider.logoPath}
-                    fallbackIconKey={null}
-                    subscriptionName={provider.displayName}
-                    sizeClassName="h-10 w-10"
-                  />
-                  <div>
-                    <p className="text-sm font-medium">{provider.displayName}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {provider.slug}
-                    </p>
+            {providers.map((provider) => {
+              const verifiedDate = formatVerifiedDate(provider.lastVerifiedAt);
+              return (
+                <button
+                  key={provider.id}
+                  type="button"
+                  onClick={() => handleSelectProvider(provider)}
+                  className="flex w-full items-center justify-between gap-3 p-3 text-left hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <SubscriptionLogo
+                      providerName={provider.displayName}
+                      logoPath={provider.logoPath}
+                      fallbackIconKey={null}
+                      subscriptionName={provider.displayName}
+                      sizeClassName="h-10 w-10"
+                    />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium">{provider.displayName}</p>
+                        {verifiedDate && (
+                          <span className="inline-flex items-center rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
+                            Verified
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {provider.slug}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <span className="text-xs text-muted-foreground">
-                  {formatDateTime(provider.lastVerifiedAt)}
-                </span>
-              </button>
-            ))}
+                  <span className="text-xs font-medium text-muted-foreground">
+                    {verifiedDate ? `${verifiedDate}` : 'Not verified'}
+                  </span>
+                </button>
+              );
+            })}
             {providers.length === 0 && (
               <p className="p-4 text-sm text-muted-foreground">
                 No providers found. Add one to get started.
@@ -363,7 +377,7 @@ export const AdminProvidersPage = () => {
               <div className="text-xs text-muted-foreground">
                 Last verified:{' '}
                 <span className="font-medium text-foreground">
-                  {formatDateTime(form.lastVerifiedAt)}
+                  {formatVerifiedDate(form.lastVerifiedAt) ?? 'Not verified'}
                 </span>
               </div>
               <Button variant="outline" size="sm" onClick={handleMarkVerified}>
