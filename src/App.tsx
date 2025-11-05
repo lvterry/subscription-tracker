@@ -264,12 +264,12 @@ function SubscriptionTracker() {
   }, [date]);
 
   useEffect(() => {
-    if (isPanelOpen) {
+    if (isPanelOpen && !editingSubscriptionId) {
       window.requestAnimationFrame(() => {
         nameInputRef.current?.focus();
       });
     }
-  }, [isPanelOpen]);
+  }, [isPanelOpen, editingSubscriptionId]);
 
   const handleChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
