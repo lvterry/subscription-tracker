@@ -3,6 +3,7 @@ import type {
   SubscriptionProvider,
   FallbackIconKey,
 } from '@/types/subscription';
+import { PROVIDER_CATALOG } from '@/data/provider-catalog';
 import { pickFallbackIconKey } from './provider-utils';
 
 export type ProviderInput = {
@@ -27,7 +28,7 @@ const mapProviderRow = (row: Record<string, unknown>): SubscriptionProvider => (
   id: String(row.id),
   slug: String(row.slug),
   displayName: String(row.display_name),
-  logoPath: String(row.logo_path),
+  logoPath: typeof row.logo_path === 'string' ? row.logo_path : '',
   lastVerifiedAt: (row.last_verified_at as string | null) ?? null,
   notes: (row.notes as string | null) ?? null,
 });
@@ -47,6 +48,42 @@ export const loadProviders = async (): Promise<SubscriptionProvider[]> => {
   }
 
   return data.map(mapProviderRow);
+};
+
+let catalogCache: {
+  providers: SubscriptionProvider[];
+  fetchedAt: number;
+} | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+export const loadProviderCatalog = async (): Promise<SubscriptionProvider[]> => {
+  const now = Date.now();
+  if (catalogCache && now - catalogCache.fetchedAt < CACHE_TTL) {
+    return catalogCache.providers;
+  }
+
+  const { data, error } = await supabase
+    .from('subscription_providers')
+    .select('id, slug, display_name, logo_path, last_verified_at, notes')
+    .order('display_name', { ascending: true });
+
+  if (error) {
+    console.error('Error loading provider catalog:', error);
+    // Fallback to local catalog if Supabase is unavailable or user lacks access
+    const fallback = Object.values(PROVIDER_CATALOG);
+    catalogCache = { providers: fallback, fetchedAt: now };
+    return fallback;
+  }
+
+  if (!data) {
+    const fallback = Object.values(PROVIDER_CATALOG);
+    catalogCache = { providers: fallback, fetchedAt: now };
+    return fallback;
+  }
+
+  const providers = data.map(mapProviderRow);
+  catalogCache = { providers, fetchedAt: now };
+  return providers;
 };
 
 export const upsertProvider = async (

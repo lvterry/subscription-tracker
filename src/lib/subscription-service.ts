@@ -146,11 +146,26 @@ export const createSubscription = async (
   subscription: Omit<Subscription, 'id'>
 ): Promise<Subscription> => {
   try {
-    const normalizedName = normalizeSubscriptionName(subscription.name);
-    const provider = await fetchProviderBySlug(normalizedName);
-    const fallbackIconKey: FallbackIconKey | null = provider
-      ? null
-      : subscription.fallbackIconKey ?? pickFallbackIconKey(normalizedName);
+    const normalizedName =
+      subscription.normalizedName && subscription.normalizedName.length > 0
+        ? subscription.normalizedName
+        : normalizeSubscriptionName(subscription.name);
+
+    let providerId: string | null = subscription.providerId ?? null;
+    let fallbackIconKey: FallbackIconKey | null =
+      subscription.fallbackIconKey ?? null;
+
+    if (!providerId) {
+      const provider = await fetchProviderBySlug(normalizedName);
+      if (provider) {
+        providerId = provider.id;
+        fallbackIconKey = null;
+      } else if (!fallbackIconKey) {
+        fallbackIconKey = pickFallbackIconKey(normalizedName);
+      }
+    } else {
+      fallbackIconKey = null;
+    }
 
     const { data, error } = await supabase
       .from('subscriptions')
@@ -162,7 +177,7 @@ export const createSubscription = async (
         billing_cycle: subscription.billingCycle,
         next_billing_date: subscription.nextBillingDate,
         active: true,
-        provider_id: provider?.id ?? null,
+        provider_id: providerId,
         fallback_icon_key: fallbackIconKey,
         normalized_name: normalizedName,
       })
@@ -192,18 +207,25 @@ export const updateSubscription = async (
   subscription: Subscription
 ): Promise<Subscription> => {
   try {
-    const normalizedName = normalizeSubscriptionName(subscription.name);
-    const provider = await fetchProviderBySlug(normalizedName);
+    const normalizedName =
+      subscription.normalizedName && subscription.normalizedName.length > 0
+        ? subscription.normalizedName
+        : normalizeSubscriptionName(subscription.name);
 
     let providerId: string | null = subscription.providerId ?? null;
     let fallbackIconKey: FallbackIconKey | null =
       subscription.fallbackIconKey ?? null;
 
-    if (provider) {
-      providerId = provider.id;
+    if (!providerId) {
+      const provider = await fetchProviderBySlug(normalizedName);
+      if (provider) {
+        providerId = provider.id;
+        fallbackIconKey = null;
+      } else if (!fallbackIconKey) {
+        fallbackIconKey = pickFallbackIconKey(normalizedName);
+      }
+    } else {
       fallbackIconKey = null;
-    } else if (!providerId) {
-      fallbackIconKey = pickFallbackIconKey(normalizedName);
     }
 
     const { data, error } = await supabase

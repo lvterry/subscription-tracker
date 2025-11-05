@@ -65,9 +65,16 @@ import {
   saveUserSettings,
 } from '@/lib/user-settings-service';
 import { SubscriptionLogo } from '@/components/SubscriptionLogo';
+import { ProviderSuggestionList } from '@/components/ProviderSuggestionList';
 import { getProviderBySlug } from '@/data/provider-catalog';
 import { normalizeSubscriptionName, pickFallbackIconKey } from '@/lib/provider-utils';
-import type { BillingCadence, Subscription, SubscriptionFormValues } from '@/types/subscription';
+import { useProviderCatalog, type ProviderSearchResult } from '@/hooks/useProviderCatalog';
+import type {
+  BillingCadence,
+  Subscription,
+  SubscriptionFormValues,
+  SubscriptionProvider,
+} from '@/types/subscription';
 
 const formatCurrency = (value: string | number, currency?: string) => {
   const numeric = Number(value);
@@ -189,6 +196,10 @@ function SubscriptionTracker() {
   const [formValues, setFormValues] = useState<SubscriptionFormValues>(getDefaultFormValues('USD'));
   const nameInputRef = useRef<HTMLInputElement | null>(null);
   const isDesktop = useMediaQuery('(min-width: 640px)');
+  const { search, findBySlug } = useProviderCatalog(Boolean(user));
+  const [selectedProvider, setSelectedProvider] = useState<SubscriptionProvider | null>(null);
+  const [providerSuggestions, setProviderSuggestions] = useState<ProviderSearchResult[]>([]);
+  const [showProviderSuggestions, setShowProviderSuggestions] = useState(false);
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
@@ -204,6 +215,9 @@ function SubscriptionTracker() {
       setDisplayName('');
       setSettingsDisplayName('');
       setFormValues(getDefaultFormValues('USD'));
+      setSelectedProvider(null);
+      setProviderSuggestions([]);
+      setShowProviderSuggestions(false);
       return;
     }
 
@@ -218,6 +232,9 @@ function SubscriptionTracker() {
         setDisplayName(settings.displayName);
         setSettingsDisplayName(settings.displayName);
         setFormValues(getDefaultFormValues(settings.primaryCurrency));
+        setSelectedProvider(null);
+        setProviderSuggestions([]);
+        setShowProviderSuggestions(false);
 
         // Then load subscriptions
         const data = await loadSubscriptions(user.id);
@@ -260,6 +277,73 @@ function SubscriptionTracker() {
       ...prev,
       [name]: value,
     }));
+
+    if (name === 'name') {
+      const normalized = normalizeSubscriptionName(value);
+
+      if (selectedProvider && selectedProvider.slug !== normalized) {
+        setSelectedProvider(null);
+      }
+
+      const matches = search(value);
+      setProviderSuggestions(matches);
+      setShowProviderSuggestions(matches.length > 0);
+    }
+  };
+
+  const handleNameFocus = () => {
+    const currentValue = formValues.name;
+    if (!currentValue) {
+      return;
+    }
+    const matches = search(currentValue);
+    setProviderSuggestions(matches);
+    setShowProviderSuggestions(matches.length > 0);
+  };
+
+  const handleNameBlur = () => {
+    const currentValue = formValues.name.trim();
+    if (!currentValue) {
+      setProviderSuggestions([]);
+      setShowProviderSuggestions(false);
+      return;
+    }
+
+    const normalized = normalizeSubscriptionName(currentValue);
+    const provider = findBySlug(normalized);
+    if (provider) {
+      setSelectedProvider(provider);
+      setFormValues((prev) => ({
+        ...prev,
+        name: provider.displayName,
+      }));
+    }
+
+    setProviderSuggestions([]);
+    setShowProviderSuggestions(false);
+  };
+
+  const handleProviderSelect = (provider: ProviderSearchResult) => {
+    setSelectedProvider(provider);
+    setFormValues((prev) => ({
+      ...prev,
+      name: provider.displayName,
+    }));
+    setProviderSuggestions([]);
+    setShowProviderSuggestions(false);
+  };
+
+  const handleClearSelectedProvider = () => {
+    setSelectedProvider(null);
+    setFormValues((prev) => ({
+      ...prev,
+      name: '',
+    }));
+    setProviderSuggestions([]);
+    setShowProviderSuggestions(false);
+    window.requestAnimationFrame(() => {
+      nameInputRef.current?.focus();
+    });
   };
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -275,12 +359,12 @@ function SubscriptionTracker() {
       return;
     }
 
+    const normalizedName = normalizeSubscriptionName(trimmedName);
+    const providerSelection = selectedProvider ?? (user ? findBySlug(normalizedName) : getProviderBySlug(normalizedName));
+    const fallbackIconKey = providerSelection ? null : pickFallbackIconKey(normalizedName);
+
     if (!user) {
       // Demo mode - just update local state
-      const normalizedName = normalizeSubscriptionName(trimmedName);
-      const provider = getProviderBySlug(normalizedName);
-      const fallbackIconKey = provider ? null : pickFallbackIconKey(normalizedName);
-
       const subscription = {
         id: makeId(),
         name: trimmedName,
@@ -288,10 +372,10 @@ function SubscriptionTracker() {
         currency: formValues.currency,
         billingCycle: formValues.billingCycle,
         nextBillingDate: formValues.nextBillingDate,
-        providerId: provider?.id ?? null,
-        providerSlug: provider?.slug ?? null,
-        providerName: provider?.displayName ?? null,
-        logoPath: provider?.logoPath ?? null,
+        providerId: providerSelection?.id ?? null,
+        providerSlug: providerSelection?.slug ?? null,
+        providerName: providerSelection?.displayName ?? null,
+        logoPath: providerSelection?.logoPath ?? null,
         fallbackIconKey,
         normalizedName,
       };
@@ -309,6 +393,9 @@ function SubscriptionTracker() {
       setDate(undefined);
       setEditingSubscriptionId(null);
       setIsPanelOpen(false);
+      setSelectedProvider(null);
+      setProviderSuggestions([]);
+      setShowProviderSuggestions(false);
       return;
     }
 
@@ -321,21 +408,18 @@ function SubscriptionTracker() {
         currency: formValues.currency,
         billingCycle: formValues.billingCycle,
         nextBillingDate: formValues.nextBillingDate,
+        providerId: providerSelection?.id ?? null,
+        providerSlug: providerSelection?.slug ?? null,
+        providerName: providerSelection?.displayName ?? null,
+        logoPath: providerSelection?.logoPath ?? null,
+        fallbackIconKey,
+        normalizedName,
       };
 
       if (editingSubscriptionId) {
-        const existing = subscriptions.find(
-          (item) => item.id === editingSubscriptionId
-        );
         const updated = await updateSubscription(user.id, {
           id: editingSubscriptionId,
           ...subscriptionData,
-          providerId: existing?.providerId ?? null,
-          providerSlug: existing?.providerSlug ?? null,
-          providerName: existing?.providerName ?? null,
-          logoPath: existing?.logoPath ?? null,
-          fallbackIconKey: existing?.fallbackIconKey ?? null,
-          normalizedName: existing?.normalizedName ?? null,
         });
         setSubscriptions((prev) =>
           prev.map((item) => (item.id === editingSubscriptionId ? updated : item)),
@@ -349,6 +433,9 @@ function SubscriptionTracker() {
       setDate(undefined);
       setEditingSubscriptionId(null);
       setIsPanelOpen(false);
+      setSelectedProvider(null);
+      setProviderSuggestions([]);
+      setShowProviderSuggestions(false);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save subscription';
       setError(errorMessage);
@@ -367,6 +454,21 @@ function SubscriptionTracker() {
     });
     setDate(parsedDate ?? undefined);
     setEditingSubscriptionId(subscription.id);
+    const normalized = subscription.providerSlug ?? normalizeSubscriptionName(subscription.name);
+    if (subscription.providerId && subscription.providerName) {
+      setSelectedProvider({
+        id: subscription.providerId,
+        slug: subscription.providerSlug ?? normalized,
+        displayName: subscription.providerName,
+        logoPath: subscription.logoPath ?? '',
+        lastVerifiedAt: null,
+        notes: null,
+      });
+    } else {
+      setSelectedProvider(null);
+    }
+    setProviderSuggestions([]);
+    setShowProviderSuggestions(false);
     setIsPanelOpen(true);
   };
 
@@ -410,6 +512,13 @@ function SubscriptionTracker() {
       setFormValues(getDefaultFormValues(primaryCurrency));
       setDate(undefined);
       setEditingSubscriptionId(null);
+      setSelectedProvider(null);
+      setProviderSuggestions([]);
+      setShowProviderSuggestions(false);
+    } else if (!editingSubscriptionId) {
+      setSelectedProvider(null);
+      setProviderSuggestions([]);
+      setShowProviderSuggestions(false);
     }
   };
 
@@ -613,15 +722,56 @@ function SubscriptionTracker() {
             <form className="space-y-5 p-4" onSubmit={handleSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="sub-name">Name</Label>
-                <Input
-                  id="sub-name"
-                  name="name"
-                  required
-                  value={formValues.name}
-                  onChange={handleChange}
-                  ref={nameInputRef}
-                  placeholder="Service name"
-                />
+                <div className="relative">
+                  <Input
+                    id="sub-name"
+                    name="name"
+                    required
+                    value={formValues.name}
+                    onChange={handleChange}
+                    onFocus={handleNameFocus}
+                    onBlur={handleNameBlur}
+                    aria-autocomplete="list"
+                    aria-expanded={showProviderSuggestions}
+                    autoComplete="off"
+                    ref={nameInputRef}
+                    placeholder="Service name"
+                  />
+                  {showProviderSuggestions && providerSuggestions.length > 0 && (
+                    <ProviderSuggestionList
+                      anchorId="sub-name"
+                      results={providerSuggestions}
+                      onSelect={handleProviderSelect}
+                      onClose={() => setShowProviderSuggestions(false)}
+                    />
+                  )}
+                </div>
+                {selectedProvider && (
+                  <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-3 py-2 text-sm">
+                    <SubscriptionLogo
+                      providerName={selectedProvider.displayName}
+                      logoPath={selectedProvider.logoPath}
+                      fallbackIconKey={null}
+                      subscriptionName={selectedProvider.displayName}
+                      sizeClassName="h-9 w-9"
+                    />
+                    <div className="flex flex-col">
+                      <span className="font-medium">{selectedProvider.displayName}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {selectedProvider.slug}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleClearSelectedProvider}
+                      className="ml-auto"
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                )}
               </div>
 
               <div className="grid gap-4 grid-cols-2">
