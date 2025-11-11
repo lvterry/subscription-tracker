@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button } from './components/ui/button.jsx';
 import { useAuth } from './contexts/AuthContext';
@@ -52,8 +52,9 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { format } from 'date-fns';
+import { format, isBefore, startOfDay } from 'date-fns';
 import { seedSubscriptions } from '@/lib/subscription-data';
+import { autoAdvanceSubscriptions, rollForwardNextBillingDate } from '@/lib/billing-utils';
 import {
   loadSubscriptions,
   createSubscription,
@@ -181,7 +182,9 @@ const useMediaQuery = (query: string): boolean => {
 function SubscriptionTracker() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>(seedSubscriptions);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>(() =>
+    autoAdvanceSubscriptions(seedSubscriptions).subscriptions,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isPanelOpen, setIsPanelOpen] = useState(false);
@@ -204,12 +207,26 @@ function SubscriptionTracker() {
 
   const [open, setOpen] = useState(false)
   const [date, setDate] = useState<Date | undefined>(undefined)
+  const [today, setToday] = useState<Date>(() => startOfDay(new Date()));
+  const persistAutoAdvancedDates = useCallback((subs: Subscription[]) => {
+    if (!user || subs.length === 0) {
+      return;
+    }
+
+    void Promise.all(
+      subs.map((subscription) =>
+        updateSubscription(user.id, subscription).catch((err) => {
+          console.error('Error updating billing date', err);
+        }),
+      ),
+    );
+  }, [user]);
 
   // Load user settings and subscriptions from database when user logs in
   useEffect(() => {
     if (!user) {
       // Reset to seed data when logged out
-      setSubscriptions(seedSubscriptions);
+      setSubscriptions(autoAdvanceSubscriptions(seedSubscriptions).subscriptions);
       setError(null);
       setPrimaryCurrency('USD');
       setSettingsCurrency('USD');
@@ -239,7 +256,9 @@ function SubscriptionTracker() {
 
         // Then load subscriptions
         const data = await loadSubscriptions(user.id);
-        setSubscriptions(data);
+        const { subscriptions: hydrated, changedSubscriptions } = autoAdvanceSubscriptions(data);
+        setSubscriptions(hydrated);
+        persistAutoAdvancedDates(changedSubscriptions);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load data';
         setError(errorMessage);
@@ -263,6 +282,32 @@ function SubscriptionTracker() {
       nextBillingDate: format(date, 'yyyy-MM-dd'),
     }));
   }, [date]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const advanceDatesIfNeeded = () => {
+      setToday((prev) => {
+        const next = startOfDay(new Date());
+        return prev.getTime() === next.getTime() ? prev : next;
+      });
+      setSubscriptions((prev) => {
+        const { subscriptions: advanced, changedSubscriptions } = autoAdvanceSubscriptions(prev);
+        if (changedSubscriptions.length === 0) {
+          return prev;
+        }
+        persistAutoAdvancedDates(changedSubscriptions);
+        return advanced;
+      });
+    };
+
+    advanceDatesIfNeeded();
+
+    const intervalId = window.setInterval(advanceDatesIfNeeded, 1000 * 60 * 60);
+    return () => window.clearInterval(intervalId);
+  }, [persistAutoAdvancedDates]);
 
   useEffect(() => {
     if (!isPanelOpen || !isAddingSubscription) {
@@ -351,6 +396,7 @@ function SubscriptionTracker() {
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    setError(null);
     const trimmedName = formValues.name.trim();
 
     if (!trimmedName) {
@@ -361,6 +407,21 @@ function SubscriptionTracker() {
       (nameInputRef.current as HTMLInputElement | null)?.focus();
       return;
     }
+
+    const parsedNextBillingDate = parseDateInput(formValues.nextBillingDate);
+    if (!parsedNextBillingDate) {
+      setError('Please select a valid next billing date.');
+      return;
+    }
+
+    const normalizedNextBillingDate = startOfDay(parsedNextBillingDate);
+    const todayStart = startOfDay(new Date());
+    if (isBefore(normalizedNextBillingDate, todayStart)) {
+      setError('Next billing date cannot be in the past.');
+      return;
+    }
+
+    const normalizedNextBillingDateString = format(normalizedNextBillingDate, 'yyyy-MM-dd');
 
     const normalizedName = normalizeSubscriptionName(trimmedName);
     let providerSelection = selectedProvider;
@@ -380,7 +441,7 @@ function SubscriptionTracker() {
         cost: Number(formValues.cost),
         currency: formValues.currency,
         billingCycle: formValues.billingCycle,
-        nextBillingDate: formValues.nextBillingDate,
+        nextBillingDate: normalizedNextBillingDateString,
         providerId: providerSelection?.id ?? null,
         providerSlug: providerSelection?.slug ?? null,
         providerName: providerSelection?.displayName ?? null,
@@ -388,15 +449,22 @@ function SubscriptionTracker() {
         fallbackIconKey,
         normalizedName,
       };
+      const rolledDate = rollForwardNextBillingDate(subscription.nextBillingDate, subscription.billingCycle);
+      const subscriptionForState = rolledDate
+        ? { ...subscription, nextBillingDate: rolledDate }
+        : subscription;
 
       if (editingSubscriptionId) {
-        setSubscriptions((prev) =>
-          prev.map((item) =>
-            item.id === editingSubscriptionId ? { ...item, ...subscription } : item,
-          ),
-        );
+        setSubscriptions((prev) => {
+          const updated = prev.map((item) =>
+            item.id === editingSubscriptionId ? { ...item, ...subscriptionForState } : item,
+          );
+          return autoAdvanceSubscriptions(updated).subscriptions;
+        });
       } else {
-        setSubscriptions((prev) => [subscription, ...prev]);
+        setSubscriptions((prev) =>
+          autoAdvanceSubscriptions([subscriptionForState, ...prev]).subscriptions,
+        );
       }
       setFormValues(getDefaultFormValues(primaryCurrency));
       setDate(undefined);
@@ -411,12 +479,12 @@ function SubscriptionTracker() {
     // User is logged in - persist to database
     setError(null);
     try {
-      const subscriptionData = {
+      let subscriptionData: Omit<Subscription, 'id'> = {
         name: trimmedName,
         cost: Number(formValues.cost),
         currency: formValues.currency,
         billingCycle: formValues.billingCycle,
-        nextBillingDate: formValues.nextBillingDate,
+        nextBillingDate: normalizedNextBillingDateString,
         providerId: providerSelection?.id ?? null,
         providerSlug: providerSelection?.slug ?? null,
         providerName: providerSelection?.displayName ?? null,
@@ -424,18 +492,28 @@ function SubscriptionTracker() {
         fallbackIconKey,
         normalizedName,
       };
+      const rolledDateForUser = rollForwardNextBillingDate(
+        subscriptionData.nextBillingDate,
+        subscriptionData.billingCycle,
+      );
+      if (rolledDateForUser) {
+        subscriptionData = { ...subscriptionData, nextBillingDate: rolledDateForUser };
+      }
 
       if (editingSubscriptionId) {
         const updated = await updateSubscription(user.id, {
           id: editingSubscriptionId,
           ...subscriptionData,
         });
-        setSubscriptions((prev) =>
-          prev.map((item) => (item.id === editingSubscriptionId ? updated : item)),
-        );
+        setSubscriptions((prev) => {
+          const next = prev.map((item) => (item.id === editingSubscriptionId ? updated : item));
+          return autoAdvanceSubscriptions(next).subscriptions;
+        });
       } else {
         const created = await createSubscription(user.id, subscriptionData);
-        setSubscriptions((prev) => [created, ...prev]);
+        setSubscriptions((prev) =>
+          autoAdvanceSubscriptions([created, ...prev]).subscriptions,
+        );
       }
 
       setFormValues(getDefaultFormValues(primaryCurrency));
@@ -493,9 +571,10 @@ function SubscriptionTracker() {
 
     if (!user) {
       // Demo mode - just update local state
-      setSubscriptions((prev) =>
-        prev.filter((subscription) => subscription.id !== pendingDeleteId),
-      );
+      setSubscriptions((prev) => {
+        const next = prev.filter((subscription) => subscription.id !== pendingDeleteId);
+        return autoAdvanceSubscriptions(next).subscriptions;
+      });
       setPendingDeleteId(null);
       return;
     }
@@ -504,9 +583,10 @@ function SubscriptionTracker() {
     setError(null);
     try {
       await deleteSubscription(user.id, pendingDeleteId);
-      setSubscriptions((prev) =>
-        prev.filter((subscription) => subscription.id !== pendingDeleteId),
-      );
+      setSubscriptions((prev) => {
+        const next = prev.filter((subscription) => subscription.id !== pendingDeleteId);
+        return autoAdvanceSubscriptions(next).subscriptions;
+      });
       setPendingDeleteId(null);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete subscription';
@@ -877,6 +957,7 @@ function SubscriptionTracker() {
                         mode="single"
                         selected={date}
                         captionLayout="dropdown"
+                        disabled={{ before: today }}
                         onSelect={(date) => {
                           setDate(date)
                           setOpen(false)
