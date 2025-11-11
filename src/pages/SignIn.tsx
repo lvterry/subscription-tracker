@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
+import { XIcon } from 'lucide-react';
 
 type SignInFormValues = {
   email: string;
@@ -21,6 +22,9 @@ export default function SignIn() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const handleClose = () => {
+    navigate('/');
+  };
 
   const onSubmit = async (data: SignInFormValues) => {
     setIsLoading(true);
@@ -39,7 +43,17 @@ export default function SignIn() {
   };
 
   return (
-    <main className="flex min-h-screen items-center justify-center px-4">
+    <main className="relative flex min-h-screen items-center justify-center px-4">
+      <Button
+        type="button"
+        size="icon-sm"
+        variant="ghost"
+        className="absolute right-4 top-4 sm:right-6 sm:top-6"
+        aria-label="Close and return to homepage"
+        onClick={handleClose}
+      >
+        <XIcon className="size-4" />
+      </Button>
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <h1 className="text-3xl font-semibold tracking-tight">Sign In to SubscriptionTracker</h1>
